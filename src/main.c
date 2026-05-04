@@ -288,7 +288,7 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
     int col = i % 4;
     int row = i / 4;
     int x = col * 36;
-    int y = 100 + row * 16;
+    int y = 100 + row * 14;
     GRect bb = gbitmap_get_bounds(s_ghost_bmp[i+1]);
     graphics_draw_bitmap_in_rect(ctx, s_ghost_bmp[i+1], GRect(x, y, bb.size.w, bb.size.h));
   }
