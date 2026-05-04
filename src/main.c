@@ -3,44 +3,61 @@
  * Pebble Time Steel / Basalt (144x168)
  *
  * Clock face: 144x84 (top half), cream background
+ * 60 tick marks around the rectangular perimeter
+ * Malayalam numerals placed geometrically at each hour position
  * Center: (72, 42)
  *
- * Numeral positions (bitmap center):
- *   Top    y=7:   10(14) 11(38) 12(62) 01(86) 02(110)  -- wider spacing
- *   Right  x=133: 03(42)                               -- int16_t, no overflow
- *   Bottom y=77:  08(14) 07(38) 06(62) 05(86) 04(110)
- *   Left   x=11:  09(42)
+ * Lower half (y=84..168): reserved for Chundan Vallam battery
  */
 
 #include <pebble.h>
 
-#define CX        72
-#define CY        42
-#define HOUR_LEN  26
-#define HOUR_TAIL  5
-#define HOUR_W     3
-#define MIN_LEN   34
-#define MIN_TAIL   6
-#define MIN_W      2
+#define CX         72
+#define CY         42
+#define W          144
+#define H_CLOCK    84
+#define HOUR_LEN   26
+#define HOUR_TAIL   5
+#define HOUR_W      3
+#define MIN_LEN    34
+#define MIN_TAIL    6
+#define MIN_W       2
 
-typedef struct { int16_t x; int16_t y; } Pt;
+/* Perimeter = 2*(144+84) = 456, 60 ticks, spacing = 7.6px */
+/* 12 o'clock is at top-center = 72px from top-left corner  */
+#define PERIM        456
+#define TOP_CENTER_D  72   /* distance along top edge to 12 o'clock */
 
-static const Pt NUM_POS[13] = {
-  {   0,  0 },
-  {  86,  7 },  /* 01 */
-  { 110,  7 },  /* 02 */
-  { 133, 42 },  /* 03 — was int8_t overflow! */
-  { 110, 77 },  /* 04 */
-  {  86, 77 },  /* 05 */
-  {  62, 77 },  /* 06 */
-  {  38, 77 },  /* 07 */
-  {  14, 77 },  /* 08 */
-  {  11, 42 },  /* 09 */
-  {  14,  7 },  /* 10 */
-  {  38,  7 },  /* 11 */
-  {  62,  7 },  /* 12 */
-};
+/* ── Perimeter math ─────────────────────────────────────────── */
+typedef struct { int16_t x; int16_t y; int8_t edge; } PerimPt;
+/* edge: 0=top 1=right 2=bottom 3=left */
 
+static PerimPt perim_to_xy(int32_t d) {
+  d = ((d % PERIM) + PERIM) % PERIM;
+  PerimPt p;
+  if (d < W) {
+    p.x = d; p.y = 0; p.edge = 0;
+  } else if (d < W + H_CLOCK) {
+    p.x = W; p.y = d - W; p.edge = 1;
+  } else if (d < 2*W + H_CLOCK) {
+    p.x = W - (d - W - H_CLOCK); p.y = H_CLOCK; p.edge = 2;
+  } else {
+    p.x = 0; p.y = H_CLOCK - (d - 2*W - H_CLOCK); p.edge = 3;
+  }
+  return p;
+}
+
+/* Inward normal per edge */
+static GPoint inward(PerimPt p, int dist) {
+  switch (p.edge) {
+    case 0: return GPoint(p.x, p.y + dist);
+    case 1: return GPoint(p.x - dist, p.y);
+    case 2: return GPoint(p.x, p.y - dist);
+    default: return GPoint(p.x + dist, p.y);
+  }
+}
+
+/* ── Resources ──────────────────────────────────────────────── */
 static const uint32_t NUM_RES[13] = {
   0,
   RESOURCE_ID_NUM_01, RESOURCE_ID_NUM_02, RESOURCE_ID_NUM_03,
@@ -54,6 +71,7 @@ static Layer   *s_canvas;
 static GBitmap *s_bmp[13];
 static int      s_hour, s_min;
 
+/* ── Draw hand ──────────────────────────────────────────────── */
 static void draw_hand(GContext *ctx, int32_t angle,
                       int len, int tail, int width) {
   graphics_context_set_stroke_width(ctx, width);
@@ -66,26 +84,50 @@ static void draw_hand(GContext *ctx, int32_t angle,
   graphics_draw_line(ctx, back, tip);
 }
 
+/* ── Canvas draw ────────────────────────────────────────────── */
 static void canvas_draw(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
+  GColor ink  = GColorFromRGB(42, 42, 34);
+  GColor cream = GColorFromRGB(240, 236, 224);
+  GColor tick_minor = GColorFromRGB(160, 156, 144);
+  GColor tick_major = GColorFromRGB(80, 78, 70);
 
   /* Cream background */
-  graphics_context_set_fill_color(ctx, GColorFromRGB(240, 236, 224));
+  graphics_context_set_fill_color(ctx, cream);
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
 
-  /* Numeral bitmaps */
+  /* ── 60 tick marks ── */
+  /* tick spacing = PERIM/60 = 7.6 → use fixed point *10 */
+  for (int i = 0; i < 60; i++) {
+    /* d = TOP_CENTER_D + i * PERIM/60, in fixed point *10 */
+    int32_t d = TOP_CENTER_D + (int32_t)i * PERIM / 60;
+    PerimPt p = perim_to_xy(d);
+    bool major = (i % 5 == 0);
+    int tick_len = major ? 5 : 3;
+    GColor tc = major ? tick_major : tick_minor;
+    GPoint outer = GPoint(p.x, p.y);
+    GPoint inner = inward(p, tick_len);
+    graphics_context_set_stroke_color(ctx, tc);
+    graphics_context_set_stroke_width(ctx, 1);
+    graphics_draw_line(ctx, outer, inner);
+  }
+
+  /* ── Numeral bitmaps ── */
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
-  for (int i = 1; i <= 12; i++) {
-    if (!s_bmp[i]) continue;
-    GRect bb = gbitmap_get_bounds(s_bmp[i]);
-    int x = NUM_POS[i].x - bb.size.w / 2;
-    int y = NUM_POS[i].y - bb.size.h / 2;
-    graphics_draw_bitmap_in_rect(ctx, s_bmp[i],
+  for (int h = 1; h <= 12; h++) {
+    if (!s_bmp[h]) continue;
+    int32_t d = TOP_CENTER_D + (int32_t)h * PERIM / 12;
+    PerimPt p = perim_to_xy(d);
+    /* Inset numerals 11px from edge so they clear the ticks */
+    GPoint np = inward(p, 11);
+    GRect bb = gbitmap_get_bounds(s_bmp[h]);
+    int x = np.x - bb.size.w / 2;
+    int y = np.y - bb.size.h / 2;
+    graphics_draw_bitmap_in_rect(ctx, s_bmp[h],
                                  GRect(x, y, bb.size.w, bb.size.h));
   }
 
-  /* Hands */
-  GColor ink = GColorFromRGB(42, 42, 34);
+  /* ── Hands ── */
   graphics_context_set_stroke_color(ctx, ink);
 
   int32_t h_angle =
@@ -108,12 +150,14 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   graphics_draw_line(ctx, GPoint(0, 84), GPoint(144, 84));
 }
 
+/* ── Tick ───────────────────────────────────────────────────── */
 static void tick_handler(struct tm *t, TimeUnits changed) {
   s_hour = t->tm_hour;
   s_min  = t->tm_min;
   layer_mark_dirty(s_canvas);
 }
 
+/* ── Window ─────────────────────────────────────────────────── */
 static void window_load(Window *window) {
   for (int i = 1; i <= 12; i++)
     s_bmp[i] = gbitmap_create_with_resource(NUM_RES[i]);
