@@ -6,10 +6,10 @@
  * Center: (72, 42)
  *
  * Numeral positions (bitmap center):
- *   Top    y=8:   10(18) 11(45) 12(72) 01(99) 02(126)
- *   Right  x=136: 03(42)
- *   Bottom y=76:  08(18) 07(45) 06(72) 05(99) 04(126)
- *   Left   x=8:   09(42)
+ *   Top    y=7:   10(16) 11(40) 12(64) 01(92) 02(118)
+ *   Right  x=130: 03(42)
+ *   Bottom y=77:  08(16) 07(40) 06(64) 05(92) 04(118)
+ *   Left   x=10:  09(42)
  *
  * Lower half (y=84..168): reserved for Chundan Vallam battery
  */
@@ -29,18 +29,18 @@ typedef struct { int8_t x; int8_t y; } Pt;
 
 static const Pt NUM_POS[13] = {
   {   0,  0 },
-  {  99,  8 },  /* 01 */
-  { 126,  8 },  /* 02 */
-  { 136, 42 },  /* 03 */
-  { 126, 76 },  /* 04 */
-  {  99, 76 },  /* 05 */
-  {  72, 76 },  /* 06 */
-  {  45, 76 },  /* 07 */
-  {  18, 76 },  /* 08 */
-  {   8, 42 },  /* 09 */
-  {  18,  8 },  /* 10 */
-  {  45,  8 },  /* 11 */
-  {  72,  8 },  /* 12 */
+  {  92,  7 },  /* 01 */
+  { 118,  7 },  /* 02 */
+  { 130, 42 },  /* 03 */
+  { 118, 77 },  /* 04 */
+  {  92, 77 },  /* 05 */
+  {  64, 77 },  /* 06 */
+  {  40, 77 },  /* 07 */
+  {  16, 77 },  /* 08 */
+  {  10, 42 },  /* 09 */
+  {  16,  7 },  /* 10 */
+  {  40,  7 },  /* 11 */
+  {  64,  7 },  /* 12 */
 };
 
 static const uint32_t NUM_RES[13] = {
@@ -104,7 +104,7 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, ink);
   graphics_fill_circle(ctx, GPoint(CX, CY), 3);
 
-  /* Divider — subtle line between clock and lower half */
+  /* Divider line */
   graphics_context_set_stroke_color(ctx, GColorFromRGB(180, 176, 164));
   graphics_context_set_stroke_width(ctx, 1);
   graphics_draw_line(ctx, GPoint(0, 84), GPoint(144, 84));
