@@ -1,21 +1,38 @@
 # Keralam — Malayalam Watchface
 
-Pebble Time Steel watchface with Malayalam numerals on a cream e-paper background.
+A Pebble Time Steel watchface celebrating Kerala.
 
 ## Features
-- 12 Malayalam numeral bitmaps (൧–൧൨) around the screen perimeter
-- Analog hands — thick hour, thin minute
-- Cream background (`#f0ece0`) with soft black ink
-- Full 144×168 screen, clock center at (72, 84)
+
+**Clock (top 144×84)**
+- Malayalam numerals (൧–൧൨) around the perimeter
+- 60 tick marks (major at each hour, minor every minute)
+- Analog pixel hands — thick hour, thin minute
+- Cream e-paper background (`#f0ece0`)
+- Archimedean spiral battery indicator — inside clock face, left side
+
+**Date strip (below clock)**
+- Line 1: `04 മേയ്, 26` — Arabic day + Malayalam month + Arabic YY
+- Line 2: `തിങ്കൾ` — Day of week in Malayalam
+
+**Bottom inscription**
+- `കേരളം, നവംബർ 1, 1956` — Kerala formation date, centered
+
+## Resources (32 total)
+| Resource | Count | Description |
+|---|---|---|
+| `num_01`–`num_12` | 12 | Clock hour numerals |
+| `month_01`–`month_12` | 12 | Malayalam month names |
+| `day_0`–`day_6` | 7 | Malayalam weekday names |
+| `inscription` | 1 | Kerala formation date |
 
 ## Import into CloudPebble
 
-1. Go to [cloudpebble.net](https://cloudpebble.net)
-2. **Import** → **Import from GitHub**
-3. Paste your repo URL
-4. Build & run
+1. Push to GitHub
+2. CloudPebble → **Import** → **Import from GitHub**
+3. Paste repo URL → Build
 
-## Project structure
+## Structure
 
 ```
 keralam/
@@ -24,13 +41,12 @@ keralam/
 │   └── main.c
 ├── resources/
 │   └── images/
-│       ├── num_01.png  ൧
-│       ├── num_02.png  ൨
-│       ├── ...
-│       └── num_12.png  ൧൨
+│       ├── num_01.png … num_12.png
+│       ├── month_01.png … month_12.png
+│       ├── day_0.png … day_6.png
+│       └── inscription.png
 └── README.md
 ```
 
 ## Roadmap
-- [ ] Chundan Vallam battery indicator (lower half)
-- [ ] Date display
+- [ ] Chundan Vallam in lower half

@@ -40,7 +40,8 @@
       { "type": "bitmap", "name": "DAY_3",    "file": "images/day_3.png" },
       { "type": "bitmap", "name": "DAY_4",    "file": "images/day_4.png" },
       { "type": "bitmap", "name": "DAY_5",    "file": "images/day_5.png" },
-      { "type": "bitmap", "name": "DAY_6",    "file": "images/day_6.png" }
+      { "type": "bitmap", "name": "DAY_6",         "file": "images/day_6.png" },
+      { "type": "bitmap", "name": "INSCRIPTION",   "file": "images/inscription.png" }
     ]
   }
 }

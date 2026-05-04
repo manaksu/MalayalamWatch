@@ -21,9 +21,9 @@
 #define MIN_TAIL     6
 #define MIN_W        2
 
-#define SP_CX       26
-#define SP_CY      148
-#define SP_MAX_R    20
+#define SP_CX       32
+#define SP_CY       42
+#define SP_MAX_R    12
 #define SP_TURNS     3
 #define SP_STEPS   180
 
@@ -82,6 +82,7 @@ static Layer   *s_canvas;
 static GBitmap *s_bmp[13];
 static GBitmap *s_month_bmp[13];
 static GBitmap *s_day_bmp[7];
+static GBitmap *s_inscription;
 static int      s_hour, s_min;
 static int      s_mday, s_mon, s_year, s_wday;
 static int      s_battery_pct = 100;
@@ -109,19 +110,12 @@ static void draw_date(GContext *ctx) {
   GColor ink = GColorFromRGB(42, 42, 34);
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
 
-  /* Line 1 — day of week */
-  GBitmap *dbmp = s_day_bmp[s_wday];
-  if (dbmp) {
-    GRect bb = gbitmap_get_bounds(dbmp);
-    graphics_draw_bitmap_in_rect(ctx, dbmp, GRect(6, 88, bb.size.w, bb.size.h));
-  }
-
-  /* Line 2 — "26 <month>, 26" */
+  /* Line 1 — "26 <month>, 26" */
   int x = 6;
-  int y = 102;
+  int y = 88;
 
   char day_str[6];
-  snprintf(day_str, sizeof(day_str), "%d ", s_mday);
+  snprintf(day_str, sizeof(day_str), "%02d ", s_mday);
   char yr_str[6];
   snprintf(yr_str, sizeof(yr_str), ", %02d", s_year % 100);
 
@@ -131,7 +125,8 @@ static void draw_date(GContext *ctx) {
   graphics_context_set_text_color(ctx, ink);
   graphics_draw_text(ctx, day_str, font, GRect(x, y-2, 30, 16),
                      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
-  x += strlen(day_str) * 7;
+  /* GOTHIC_14: each digit ~7px, space ~4px, so "04 " = 18px */
+  x += 14;
 
   /* Month bitmap */
   GBitmap *mbmp = s_month_bmp[s_mon];
@@ -146,6 +141,13 @@ static void draw_date(GContext *ctx) {
   graphics_context_set_text_color(ctx, ink);
   graphics_draw_text(ctx, yr_str, font, GRect(x, y-2, 40, 16),
                      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+
+  /* Line 2 — day of week */
+  GBitmap *dbmp = s_day_bmp[s_wday];
+  if (dbmp) {
+    GRect bb = gbitmap_get_bounds(dbmp);
+    graphics_draw_bitmap_in_rect(ctx, dbmp, GRect(6, 102, bb.size.w, bb.size.h));
+  }
 }
 
 /* ── Spiral drawing ───────────────────────────────────────── */
@@ -262,8 +264,17 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   /* Date strip */
   draw_date(ctx);
 
-  /* Spiral battery */
+  /* Spiral battery — inside clock face, left side */
   draw_spiral(ctx, s_battery_pct);
+
+  /* Inscription — bottom of lower half, centered */
+  if (s_inscription) {
+    graphics_context_set_compositing_mode(ctx, GCompOpSet);
+    GRect bb = gbitmap_get_bounds(s_inscription);
+    int x = (144 - bb.size.w) / 2;
+    int y = 168 - bb.size.h - 4;
+    graphics_draw_bitmap_in_rect(ctx, s_inscription, GRect(x, y, bb.size.w, bb.size.h));
+  }
 }
 
 /* ── Handlers ─────────────────────────────────────────────── */
@@ -290,6 +301,7 @@ static void window_load(Window *window) {
     s_month_bmp[i] = gbitmap_create_with_resource(MONTH_RES[i]);
   for (int i = 0; i < 7; i++)
     s_day_bmp[i] = gbitmap_create_with_resource(DAY_RES[i]);
+  s_inscription = gbitmap_create_with_resource(RESOURCE_ID_INSCRIPTION);
 
   Layer *root = window_get_root_layer(window);
   s_canvas = layer_create(layer_get_bounds(root));
@@ -316,6 +328,7 @@ static void window_unload(Window *window) {
   }
   for (int i = 0; i < 7; i++)
     if (s_day_bmp[i]) gbitmap_destroy(s_day_bmp[i]);
+  if (s_inscription) gbitmap_destroy(s_inscription);
 }
 
 /* ── App entry ────────────────────────────────────────────── */
