@@ -2,49 +2,52 @@
  * Keralam Watchface
  * Pebble Time Steel / Basalt (144x168)
  *
- * Clock face: 144x84 (top half), cream background
- * 60 tick marks around the rectangular perimeter
- * Malayalam numerals placed geometrically, with fine-tuned offsets
- * Center: (72, 42)
+ * Top half (144x84): Analog clock, cream bg, Malayalam numerals,
+ *                    60 tick marks around perimeter
+ * Bottom half (144x84): Archimedean spiral battery indicator,
+ *                       bottom-left corner, fills outward from center
  *
- * Lower half (y=84..168): reserved for Chundan Vallam battery
+ * Clock center: (72, 42)
+ * Spiral center: (22, 155)
  */
 
 #include <pebble.h>
+#include <math.h>
 
-#define CX         72
-#define CY         42
-#define W          144
-#define H_CLOCK    84
-#define HOUR_LEN   26
-#define HOUR_TAIL   5
-#define HOUR_W      3
-#define MIN_LEN    34
-#define MIN_TAIL    6
-#define MIN_W       2
+#define CX          72
+#define CY          42
+#define HOUR_LEN    26
+#define HOUR_TAIL    5
+#define HOUR_W       3
+#define MIN_LEN     34
+#define MIN_TAIL     6
+#define MIN_W        2
 
-#define PERIM        456
-#define TOP_CENTER_D  72
+/* Spiral config */
+#define SP_CX       22      /* spiral center x */
+#define SP_CY      155      /* spiral center y */
+#define SP_MAX_R    18      /* outermost radius px */
+#define SP_TURNS     4      /* number of rings */
+#define SP_STEPS   200      /* path resolution */
+
+/* Perimeter layout */
+#define PERIM       456
+#define TOP_CTR_D    72
 
 typedef struct { int16_t x; int16_t y; int8_t edge; } PerimPt;
 
 static PerimPt perim_to_xy(int32_t d) {
   d = ((d % PERIM) + PERIM) % PERIM;
   PerimPt p;
-  if (d < W) {
-    p.x = d; p.y = 0; p.edge = 0;
-  } else if (d < W + H_CLOCK) {
-    p.x = W; p.y = d - W; p.edge = 1;
-  } else if (d < 2*W + H_CLOCK) {
-    p.x = W - (d - W - H_CLOCK); p.y = H_CLOCK; p.edge = 2;
-  } else {
-    p.x = 0; p.y = H_CLOCK - (d - 2*W - H_CLOCK); p.edge = 3;
-  }
+  if (d < 144)              { p.x = d;       p.y = 0;       p.edge = 0; }
+  else if (d < 144+84)      { p.x = 144;     p.y = d-144;   p.edge = 1; }
+  else if (d < 144+84+144)  { p.x = 144-(d-144-84); p.y = 84; p.edge = 2; }
+  else                      { p.x = 0; p.y = 84-(d-144-84-144); p.edge = 3; }
   return p;
 }
 
 static GPoint inward(PerimPt p, int dist) {
-  switch (p.edge) {
+  switch(p.edge) {
     case 0: return GPoint(p.x, p.y + dist);
     case 1: return GPoint(p.x - dist, p.y);
     case 2: return GPoint(p.x, p.y - dist);
@@ -52,29 +55,8 @@ static GPoint inward(PerimPt p, int dist) {
   }
 }
 
-/*
- * Per-numeral fine-tune offsets (dx, dy):
- * Hours 1..12 in order.
- *
- * Top row (edge=0): corners 10,02 lower +2; middles 11,12,01 raise -2
- * Bottom row (edge=2): corners 08,04 raise -2; middles 07,06,05 lower +2
- * Left/right (edge 1,3): no change
- */
-static const int8_t NUM_DX[13] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static const int8_t NUM_DY[13] = {
-  0,    /* unused */
-  -2,   /* 01 — top middle → up */
-  +2,   /* 02 — top right corner → down */
-  0,    /* 03 — right edge */
-  -2,   /* 04 — bottom right corner → up */
-  +2,   /* 05 — bottom middle → down */
-  +2,   /* 06 — bottom middle → down */
-  +2,   /* 07 — bottom middle → down */
-  -2,   /* 08 — bottom left corner → up */
-  0,    /* 09 — left edge */
-  +2,   /* 10 — top left corner → down */
-  -2,   /* 11 — top middle → up */
-  -2,   /* 12 — top middle → up */
+  0, -2,+2, 0,-2,+2,+2,+2,-2, 0,+2,-2,-2
 };
 
 static const uint32_t NUM_RES[13] = {
@@ -89,7 +71,9 @@ static Window  *s_window;
 static Layer   *s_canvas;
 static GBitmap *s_bmp[13];
 static int      s_hour, s_min;
+static int      s_battery_pct = 100;
 
+/* ── Hand drawing ─────────────────────────────────────────── */
 static void draw_hand(GContext *ctx, int32_t angle,
                       int len, int tail, int width) {
   graphics_context_set_stroke_width(ctx, width);
@@ -102,40 +86,96 @@ static void draw_hand(GContext *ctx, int32_t angle,
   graphics_draw_line(ctx, back, tip);
 }
 
+/* ── Spiral drawing ───────────────────────────────────────── */
+/*
+ * Archimedean spiral: r = MAX_R - (MAX_R / total_angle) * a
+ * Drawn as a GPath approximation using line segments.
+ * We draw two passes:
+ *   1. Full ghost (dim) outline
+ *   2. Filled portion up to battery % (ink)
+ */
+static void draw_spiral(GContext *ctx, int pct) {
+  const float total_angle = SP_TURNS * 2.0f * M_PI;
+  const float filled_angle = total_angle * (pct / 100.0f);
+  const float gap = (float)SP_MAX_R / total_angle;
+
+  GColor ink   = GColorFromRGB(42, 42, 34);
+  GColor ghost = GColorFromRGB(210, 206, 194);
+
+  /* Ghost — full spiral */
+  graphics_context_set_stroke_color(ctx, ghost);
+  graphics_context_set_stroke_width(ctx, 2);
+  GPoint prev, curr;
+  bool first = true;
+  for (int i = 0; i <= SP_STEPS; i++) {
+    float a = (total_angle * i) / SP_STEPS;
+    float r = SP_MAX_R - gap * a;
+    if (r < 1.0f) break;
+    float angle = a - M_PI / 2.0f;
+    curr = GPoint(
+      SP_CX + (int)(r * cos(angle)),
+      SP_CY + (int)(r * sin(angle))
+    );
+    if (!first) graphics_draw_line(ctx, prev, curr);
+    prev = curr;
+    first = false;
+  }
+
+  /* Filled — up to battery % */
+  if (pct <= 0) return;
+  graphics_context_set_stroke_color(ctx, ink);
+  graphics_context_set_stroke_width(ctx, 3);
+  first = true;
+  int filled_steps = (int)(SP_STEPS * (filled_angle / total_angle));
+  for (int i = 0; i <= filled_steps; i++) {
+    float a = (total_angle * i) / SP_STEPS;
+    float r = SP_MAX_R - gap * a;
+    if (r < 1.0f) break;
+    float angle = a - M_PI / 2.0f;
+    curr = GPoint(
+      SP_CX + (int)(r * cos(angle)),
+      SP_CY + (int)(r * sin(angle))
+    );
+    if (!first) graphics_draw_line(ctx, prev, curr);
+    prev = curr;
+    first = false;
+  }
+
+  /* Center dot */
+  graphics_context_set_fill_color(ctx, ink);
+  graphics_fill_circle(ctx, GPoint(SP_CX, SP_CY), 2);
+}
+
+/* ── Canvas draw ──────────────────────────────────────────── */
 static void canvas_draw(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
-  GColor ink       = GColorFromRGB(42, 42, 34);
-  GColor cream     = GColorFromRGB(240, 236, 224);
-  GColor tick_minor = GColorFromRGB(160, 156, 144);
-  GColor tick_major = GColorFromRGB(80, 78, 70);
+  GColor cream = GColorFromRGB(240, 236, 224);
+  GColor ink   = GColorFromRGB(42, 42, 34);
 
-  /* Cream background */
+  /* Full cream background */
   graphics_context_set_fill_color(ctx, cream);
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
 
-  /* 60 tick marks */
+  /* ── 60 tick marks (clock face perimeter) ── */
   for (int i = 0; i < 60; i++) {
-    int32_t d = TOP_CENTER_D + (int32_t)i * PERIM / 60;
+    int32_t d = TOP_CTR_D + (int32_t)i * PERIM / 60;
     PerimPt p = perim_to_xy(d);
     bool major = (i % 5 == 0);
-    int tick_len = major ? 5 : 3;
-    GColor tc = major ? tick_major : tick_minor;
     GPoint outer = GPoint(p.x, p.y);
-    GPoint inner = inward(p, tick_len);
-    graphics_context_set_stroke_color(ctx, tc);
+    GPoint inner = inward(p, major ? 5 : 3);
+    graphics_context_set_stroke_color(ctx,
+      major ? GColorFromRGB(80,76,64) : GColorFromRGB(160,154,136));
     graphics_context_set_stroke_width(ctx, 1);
     graphics_draw_line(ctx, outer, inner);
   }
 
-  /* Numeral bitmaps */
+  /* ── Numeral bitmaps ── */
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
   for (int h = 1; h <= 12; h++) {
     if (!s_bmp[h]) continue;
-    int32_t d = TOP_CENTER_D + (int32_t)h * PERIM / 12;
+    int32_t d = TOP_CTR_D + (int32_t)h * PERIM / 12;
     PerimPt p = perim_to_xy(d);
     GPoint np = inward(p, 11);
-    /* Apply fine-tune offset */
-    np.x += NUM_DX[h];
     np.y += NUM_DY[h];
     GRect bb = gbitmap_get_bounds(s_bmp[h]);
     int x = np.x - bb.size.w / 2;
@@ -144,7 +184,7 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
                                  GRect(x, y, bb.size.w, bb.size.h));
   }
 
-  /* Hands */
+  /* ── Clock hands ── */
   graphics_context_set_stroke_color(ctx, ink);
 
   int32_t h_angle =
@@ -161,18 +201,29 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, ink);
   graphics_fill_circle(ctx, GPoint(CX, CY), 3);
 
-  /* Divider line */
-  graphics_context_set_stroke_color(ctx, GColorFromRGB(180, 176, 164));
+  /* Divider */
+  graphics_context_set_stroke_color(ctx, GColorFromRGB(180,174,158));
   graphics_context_set_stroke_width(ctx, 1);
   graphics_draw_line(ctx, GPoint(0, 84), GPoint(144, 84));
+
+  /* ── Spiral battery ── */
+  draw_spiral(ctx, s_battery_pct);
 }
 
+/* ── Battery handler ──────────────────────────────────────── */
+static void battery_handler(BatteryChargeState state) {
+  s_battery_pct = state.charge_percent;
+  layer_mark_dirty(s_canvas);
+}
+
+/* ── Tick handler ─────────────────────────────────────────── */
 static void tick_handler(struct tm *t, TimeUnits changed) {
   s_hour = t->tm_hour;
   s_min  = t->tm_min;
   layer_mark_dirty(s_canvas);
 }
 
+/* ── Window lifecycle ─────────────────────────────────────── */
 static void window_load(Window *window) {
   for (int i = 1; i <= 12; i++)
     s_bmp[i] = gbitmap_create_with_resource(NUM_RES[i]);
@@ -186,6 +237,8 @@ static void window_load(Window *window) {
   struct tm *t = localtime(&now);
   s_hour = t->tm_hour;
   s_min  = t->tm_min;
+
+  s_battery_pct = battery_state_service_peek().charge_percent;
 }
 
 static void window_unload(Window *window) {
@@ -194,6 +247,7 @@ static void window_unload(Window *window) {
     if (s_bmp[i]) gbitmap_destroy(s_bmp[i]);
 }
 
+/* ── App entry ────────────────────────────────────────────── */
 static void init(void) {
   s_window = window_create();
   window_set_window_handlers(s_window, (WindowHandlers){
@@ -202,10 +256,12 @@ static void init(void) {
   });
   window_stack_push(s_window, true);
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
+  battery_state_service_subscribe(battery_handler);
 }
 
 static void deinit(void) {
   tick_timer_service_unsubscribe();
+  battery_state_service_unsubscribe();
   window_destroy(s_window);
 }
 
