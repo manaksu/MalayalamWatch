@@ -279,16 +279,17 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   draw_spiral(ctx, s_battery_pct);
 
   /* Ghost numeral grid 4×3 — y=100..148
-   * Each cell 36×16px, centered numeral in light ghost colour
+   * Each ghost bitmap is exactly 36×16px (cell sized)
+   * Contains ML numeral + Arabic reference, pre-rendered light grey
    */
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
   for (int i = 0; i < 12; i++) {
     if (!s_ghost_bmp[i+1]) continue;
     int col = i % 4;
     int row = i / 4;
+    int x = col * 36;
+    int y = 100 + row * 16;
     GRect bb = gbitmap_get_bounds(s_ghost_bmp[i+1]);
-    int x = col * 36 + (36 - bb.size.w) / 2;
-    int y = 100 + row * 16 + (16 - bb.size.h) / 2;
     graphics_draw_bitmap_in_rect(ctx, s_ghost_bmp[i+1], GRect(x, y, bb.size.w, bb.size.h));
   }
 
