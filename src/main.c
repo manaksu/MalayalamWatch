@@ -6,12 +6,10 @@
  * Center: (72, 42)
  *
  * Numeral positions (bitmap center):
- *   Top    y=7:   10(16) 11(40) 12(64) 01(92) 02(118)
- *   Right  x=130: 03(42)
- *   Bottom y=77:  08(16) 07(40) 06(64) 05(92) 04(118)
- *   Left   x=10:  09(42)
- *
- * Lower half (y=84..168): reserved for Chundan Vallam battery
+ *   Top    y=7:   10(14) 11(38) 12(62) 01(86) 02(110)  -- wider spacing
+ *   Right  x=133: 03(42)                               -- int16_t, no overflow
+ *   Bottom y=77:  08(14) 07(38) 06(62) 05(86) 04(110)
+ *   Left   x=11:  09(42)
  */
 
 #include <pebble.h>
@@ -25,22 +23,22 @@
 #define MIN_TAIL   6
 #define MIN_W      2
 
-typedef struct { int8_t x; int8_t y; } Pt;
+typedef struct { int16_t x; int16_t y; } Pt;
 
 static const Pt NUM_POS[13] = {
   {   0,  0 },
-  {  92,  7 },  /* 01 */
-  { 118,  7 },  /* 02 */
-  { 130, 42 },  /* 03 */
-  { 118, 77 },  /* 04 */
-  {  92, 77 },  /* 05 */
-  {  64, 77 },  /* 06 */
-  {  40, 77 },  /* 07 */
-  {  16, 77 },  /* 08 */
-  {  10, 42 },  /* 09 */
-  {  16,  7 },  /* 10 */
-  {  40,  7 },  /* 11 */
-  {  64,  7 },  /* 12 */
+  {  86,  7 },  /* 01 */
+  { 110,  7 },  /* 02 */
+  { 133, 42 },  /* 03 — was int8_t overflow! */
+  { 110, 77 },  /* 04 */
+  {  86, 77 },  /* 05 */
+  {  62, 77 },  /* 06 */
+  {  38, 77 },  /* 07 */
+  {  14, 77 },  /* 08 */
+  {  11, 42 },  /* 09 */
+  {  14,  7 },  /* 10 */
+  {  38,  7 },  /* 11 */
+  {  62,  7 },  /* 12 */
 };
 
 static const uint32_t NUM_RES[13] = {
@@ -75,7 +73,7 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, GColorFromRGB(240, 236, 224));
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
 
-  /* Numeral bitmaps — black ink on transparent */
+  /* Numeral bitmaps */
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
   for (int i = 1; i <= 12; i++) {
     if (!s_bmp[i]) continue;
