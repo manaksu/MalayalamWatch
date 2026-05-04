@@ -41,7 +41,19 @@
       { "type": "bitmap", "name": "DAY_4",    "file": "images/day_4.png" },
       { "type": "bitmap", "name": "DAY_5",    "file": "images/day_5.png" },
       { "type": "bitmap", "name": "DAY_6",         "file": "images/day_6.png" },
-      { "type": "bitmap", "name": "INSCRIPTION",   "file": "images/inscription.png" }
+      { "type": "bitmap", "name": "INSCRIPTION",   "file": "images/inscription.png" },
+      { "type": "bitmap", "name": "GHOST_01", "file": "images/ghost_01.png" },
+      { "type": "bitmap", "name": "GHOST_02", "file": "images/ghost_02.png" },
+      { "type": "bitmap", "name": "GHOST_03", "file": "images/ghost_03.png" },
+      { "type": "bitmap", "name": "GHOST_04", "file": "images/ghost_04.png" },
+      { "type": "bitmap", "name": "GHOST_05", "file": "images/ghost_05.png" },
+      { "type": "bitmap", "name": "GHOST_06", "file": "images/ghost_06.png" },
+      { "type": "bitmap", "name": "GHOST_07", "file": "images/ghost_07.png" },
+      { "type": "bitmap", "name": "GHOST_08", "file": "images/ghost_08.png" },
+      { "type": "bitmap", "name": "GHOST_09", "file": "images/ghost_09.png" },
+      { "type": "bitmap", "name": "GHOST_10", "file": "images/ghost_10.png" },
+      { "type": "bitmap", "name": "GHOST_11", "file": "images/ghost_11.png" },
+      { "type": "bitmap", "name": "GHOST_12", "file": "images/ghost_12.png" }
     ]
   }
 }

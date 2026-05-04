@@ -77,9 +77,18 @@ static const uint32_t DAY_RES[7] = {
   RESOURCE_ID_DAY_6,
 };
 
+static const uint32_t GHOST_RES[13] = {
+  0,
+  RESOURCE_ID_GHOST_01, RESOURCE_ID_GHOST_02, RESOURCE_ID_GHOST_03,
+  RESOURCE_ID_GHOST_04, RESOURCE_ID_GHOST_05, RESOURCE_ID_GHOST_06,
+  RESOURCE_ID_GHOST_07, RESOURCE_ID_GHOST_08, RESOURCE_ID_GHOST_09,
+  RESOURCE_ID_GHOST_10, RESOURCE_ID_GHOST_11, RESOURCE_ID_GHOST_12,
+};
+
 static Window  *s_window;
 static Layer   *s_canvas;
 static GBitmap *s_bmp[13];
+static GBitmap *s_ghost_bmp[13];
 static GBitmap *s_month_bmp[13];
 static GBitmap *s_day_bmp[7];
 static GBitmap *s_inscription;
@@ -102,30 +111,37 @@ static void draw_hand(GContext *ctx, int32_t angle,
 
 /* ── Date drawing ─────────────────────────────────────────── */
 /*
- * Line 1 (y=88): Day name bitmap  e.g. <ഞായർ>
- * Line 2 (y=102): "26 <മേയ്>, 26"
- * Both left-aligned at x=6
+ * Single line: <ഞായർ>, 04 <മേയ്>, 26
+ * Left-aligned at x=6, y=88
  */
 static void draw_date(GContext *ctx) {
   GColor ink = GColorFromRGB(42, 42, 34);
-  graphics_context_set_compositing_mode(ctx, GCompOpSet);
-
-  /* Line 1 — "26 <month>, 26" */
+  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   int x = 6;
   int y = 88;
 
-  char day_str[6];
-  snprintf(day_str, sizeof(day_str), "%02d ", s_mday);
-  char yr_str[6];
-  snprintf(yr_str, sizeof(yr_str), ", %02d", s_year % 100);
+  graphics_context_set_compositing_mode(ctx, GCompOpSet);
 
-  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  /* Day of week bitmap */
+  GBitmap *dbmp = s_day_bmp[s_wday];
+  if (dbmp) {
+    GRect bb = gbitmap_get_bounds(dbmp);
+    int by = y + (12 - bb.size.h) / 2;
+    graphics_draw_bitmap_in_rect(ctx, dbmp, GRect(x, by, bb.size.w, bb.size.h));
+    x += bb.size.w;
+  }
 
-  /* Day number */
+  /* Comma + space after day */
   graphics_context_set_text_color(ctx, ink);
-  graphics_draw_text(ctx, day_str, font, GRect(x, y-2, 30, 16),
+  graphics_draw_text(ctx, ", ", font, GRect(x, y-2, 14, 16),
                      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
-  /* GOTHIC_14: each digit ~7px, space ~4px, so "04 " = 18px */
+  x += 8;
+
+  /* Day number e.g. "04 " */
+  char day_str[5];
+  snprintf(day_str, sizeof(day_str), "%02d ", s_mday);
+  graphics_draw_text(ctx, day_str, font, GRect(x, y-2, 26, 16),
+                     GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
   x += 14;
 
   /* Month bitmap */
@@ -137,17 +153,12 @@ static void draw_date(GContext *ctx) {
     x += bb.size.w;
   }
 
-  /* Year */
+  /* ", YY" */
+  char yr_str[6];
+  snprintf(yr_str, sizeof(yr_str), ", %02d", s_year % 100);
   graphics_context_set_text_color(ctx, ink);
   graphics_draw_text(ctx, yr_str, font, GRect(x, y-2, 40, 16),
                      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
-
-  /* Line 2 — day of week */
-  GBitmap *dbmp = s_day_bmp[s_wday];
-  if (dbmp) {
-    GRect bb = gbitmap_get_bounds(dbmp);
-    graphics_draw_bitmap_in_rect(ctx, dbmp, GRect(6, 102, bb.size.w, bb.size.h));
-  }
 }
 
 /* ── Spiral drawing ───────────────────────────────────────── */
@@ -267,6 +278,20 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   /* Spiral battery — inside clock face, left side */
   draw_spiral(ctx, s_battery_pct);
 
+  /* Ghost numeral grid 4×3 — y=100..148
+   * Each cell 36×16px, centered numeral in light ghost colour
+   */
+  graphics_context_set_compositing_mode(ctx, GCompOpSet);
+  for (int i = 0; i < 12; i++) {
+    if (!s_ghost_bmp[i+1]) continue;
+    int col = i % 4;
+    int row = i / 4;
+    GRect bb = gbitmap_get_bounds(s_ghost_bmp[i+1]);
+    int x = col * 36 + (36 - bb.size.w) / 2;
+    int y = 100 + row * 16 + (16 - bb.size.h) / 2;
+    graphics_draw_bitmap_in_rect(ctx, s_ghost_bmp[i+1], GRect(x, y, bb.size.w, bb.size.h));
+  }
+
   /* Inscription — bottom of lower half, centered */
   if (s_inscription) {
     graphics_context_set_compositing_mode(ctx, GCompOpSet);
@@ -298,6 +323,8 @@ static void window_load(Window *window) {
   for (int i = 1; i <= 12; i++)
     s_bmp[i] = gbitmap_create_with_resource(NUM_RES[i]);
   for (int i = 1; i <= 12; i++)
+    s_ghost_bmp[i] = gbitmap_create_with_resource(GHOST_RES[i]);
+  for (int i = 1; i <= 12; i++)
     s_month_bmp[i] = gbitmap_create_with_resource(MONTH_RES[i]);
   for (int i = 0; i < 7; i++)
     s_day_bmp[i] = gbitmap_create_with_resource(DAY_RES[i]);
@@ -324,6 +351,7 @@ static void window_unload(Window *window) {
   layer_destroy(s_canvas);
   for (int i = 1; i <= 12; i++) {
     if (s_bmp[i])       gbitmap_destroy(s_bmp[i]);
+    if (s_ghost_bmp[i]) gbitmap_destroy(s_ghost_bmp[i]);
     if (s_month_bmp[i]) gbitmap_destroy(s_month_bmp[i]);
   }
   for (int i = 0; i < 7; i++)
