@@ -2,17 +2,15 @@
  * Keralam Watchface
  * Pebble Time Steel / Basalt (144x168)
  *
- * Top half (144x84): Analog clock, cream bg, Malayalam numerals,
- *                    60 tick marks around perimeter
- * Bottom half (144x84): Archimedean spiral battery indicator,
- *                       bottom-left corner, fills outward from center
+ * Top half (144x84)  : Analog clock, cream bg, Malayalam numerals, 60 ticks
+ * Just below divider : Date as "26 മേയ്, 26" — Arabic day/year + Malayalam month bitmap
+ * Bottom half        : Archimedean spiral battery indicator, bottom-left
  *
  * Clock center: (72, 42)
- * Spiral center: (22, 155)
+ * Spiral center: (26, 148)
  */
 
 #include <pebble.h>
-#include <math.h>
 
 #define CX          72
 #define CY          42
@@ -23,14 +21,12 @@
 #define MIN_TAIL     6
 #define MIN_W        2
 
-/* Spiral config */
-#define SP_CX       22      /* spiral center x */
-#define SP_CY      155      /* spiral center y */
-#define SP_MAX_R    18      /* outermost radius px */
-#define SP_TURNS     4      /* number of rings */
-#define SP_STEPS   200      /* path resolution */
+#define SP_CX       26
+#define SP_CY      148
+#define SP_MAX_R    20
+#define SP_TURNS     3
+#define SP_STEPS   180
 
-/* Perimeter layout */
 #define PERIM       456
 #define TOP_CTR_D    72
 
@@ -39,10 +35,10 @@ typedef struct { int16_t x; int16_t y; int8_t edge; } PerimPt;
 static PerimPt perim_to_xy(int32_t d) {
   d = ((d % PERIM) + PERIM) % PERIM;
   PerimPt p;
-  if (d < 144)              { p.x = d;       p.y = 0;       p.edge = 0; }
-  else if (d < 144+84)      { p.x = 144;     p.y = d-144;   p.edge = 1; }
-  else if (d < 144+84+144)  { p.x = 144-(d-144-84); p.y = 84; p.edge = 2; }
-  else                      { p.x = 0; p.y = 84-(d-144-84-144); p.edge = 3; }
+  if (d < 144)             { p.x = d;             p.y = 0;            p.edge = 0; }
+  else if (d < 144+84)     { p.x = 144;            p.y = d-144;        p.edge = 1; }
+  else if (d < 144+84+144) { p.x = 144-(d-144-84); p.y = 84;           p.edge = 2; }
+  else                     { p.x = 0;              p.y = 84-(d-144-84-144); p.edge = 3; }
   return p;
 }
 
@@ -67,10 +63,27 @@ static const uint32_t NUM_RES[13] = {
   RESOURCE_ID_NUM_10, RESOURCE_ID_NUM_11, RESOURCE_ID_NUM_12,
 };
 
+static const uint32_t MONTH_RES[13] = {
+  0,
+  RESOURCE_ID_MONTH_01, RESOURCE_ID_MONTH_02, RESOURCE_ID_MONTH_03,
+  RESOURCE_ID_MONTH_04, RESOURCE_ID_MONTH_05, RESOURCE_ID_MONTH_06,
+  RESOURCE_ID_MONTH_07, RESOURCE_ID_MONTH_08, RESOURCE_ID_MONTH_09,
+  RESOURCE_ID_MONTH_10, RESOURCE_ID_MONTH_11, RESOURCE_ID_MONTH_12,
+};
+
+static const uint32_t DAY_RES[7] = {
+  RESOURCE_ID_DAY_0, RESOURCE_ID_DAY_1, RESOURCE_ID_DAY_2,
+  RESOURCE_ID_DAY_3, RESOURCE_ID_DAY_4, RESOURCE_ID_DAY_5,
+  RESOURCE_ID_DAY_6,
+};
+
 static Window  *s_window;
 static Layer   *s_canvas;
 static GBitmap *s_bmp[13];
+static GBitmap *s_month_bmp[13];
+static GBitmap *s_day_bmp[7];
 static int      s_hour, s_min;
+static int      s_mday, s_mon, s_year, s_wday;
 static int      s_battery_pct = 100;
 
 /* ── Hand drawing ─────────────────────────────────────────── */
@@ -86,18 +99,60 @@ static void draw_hand(GContext *ctx, int32_t angle,
   graphics_draw_line(ctx, back, tip);
 }
 
-/* ── Spiral drawing ───────────────────────────────────────── */
+/* ── Date drawing ─────────────────────────────────────────── */
 /*
- * Archimedean spiral: r = MAX_R - (MAX_R / total_angle) * a
- * Drawn as a GPath approximation using line segments.
- * We draw two passes:
- *   1. Full ghost (dim) outline
- *   2. Filled portion up to battery % (ink)
+ * Line 1 (y=88): Day name bitmap  e.g. <ഞായർ>
+ * Line 2 (y=102): "26 <മേയ്>, 26"
+ * Both left-aligned at x=6
  */
+static void draw_date(GContext *ctx) {
+  GColor ink = GColorFromRGB(42, 42, 34);
+  graphics_context_set_compositing_mode(ctx, GCompOpSet);
+
+  /* Line 1 — day of week */
+  GBitmap *dbmp = s_day_bmp[s_wday];
+  if (dbmp) {
+    GRect bb = gbitmap_get_bounds(dbmp);
+    graphics_draw_bitmap_in_rect(ctx, dbmp, GRect(6, 88, bb.size.w, bb.size.h));
+  }
+
+  /* Line 2 — "26 <month>, 26" */
+  int x = 6;
+  int y = 102;
+
+  char day_str[6];
+  snprintf(day_str, sizeof(day_str), "%d ", s_mday);
+  char yr_str[6];
+  snprintf(yr_str, sizeof(yr_str), ", %02d", s_year % 100);
+
+  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+
+  /* Day number */
+  graphics_context_set_text_color(ctx, ink);
+  graphics_draw_text(ctx, day_str, font, GRect(x, y-2, 30, 16),
+                     GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+  x += strlen(day_str) * 7;
+
+  /* Month bitmap */
+  GBitmap *mbmp = s_month_bmp[s_mon];
+  if (mbmp) {
+    GRect bb = gbitmap_get_bounds(mbmp);
+    int by = y + (12 - bb.size.h) / 2;
+    graphics_draw_bitmap_in_rect(ctx, mbmp, GRect(x, by, bb.size.w, bb.size.h));
+    x += bb.size.w;
+  }
+
+  /* Year */
+  graphics_context_set_text_color(ctx, ink);
+  graphics_draw_text(ctx, yr_str, font, GRect(x, y-2, 40, 16),
+                     GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+}
+
+/* ── Spiral drawing ───────────────────────────────────────── */
 static void draw_spiral(GContext *ctx, int pct) {
-  const float total_angle = SP_TURNS * 2.0f * M_PI;
-  const float filled_angle = total_angle * (pct / 100.0f);
-  const float gap = (float)SP_MAX_R / total_angle;
+  const int32_t total_trig  = (int32_t)SP_TURNS * TRIG_MAX_ANGLE;
+  const int32_t filled_steps = (int32_t)SP_STEPS * pct / 100;
+  const int32_t offset = -TRIG_MAX_ANGLE / 4;
 
   GColor ink   = GColorFromRGB(42, 42, 34);
   GColor ghost = GColorFromRGB(210, 206, 194);
@@ -105,16 +160,15 @@ static void draw_spiral(GContext *ctx, int pct) {
   /* Ghost — full spiral */
   graphics_context_set_stroke_color(ctx, ghost);
   graphics_context_set_stroke_width(ctx, 2);
-  GPoint prev, curr;
+  GPoint prev = GPoint(SP_CX, SP_CY);
   bool first = true;
   for (int i = 0; i <= SP_STEPS; i++) {
-    float a = (total_angle * i) / SP_STEPS;
-    float r = SP_MAX_R - gap * a;
-    if (r < 1.0f) break;
-    float angle = a - M_PI / 2.0f;
-    curr = GPoint(
-      SP_CX + (int)(r * cos(angle)),
-      SP_CY + (int)(r * sin(angle))
+    int32_t trig_angle = offset + total_trig * i / SP_STEPS;
+    int32_t r = SP_MAX_R - (int32_t)SP_MAX_R * i / SP_STEPS;
+    if (r < 1) break;
+    GPoint curr = GPoint(
+      SP_CX + (int)(r * cos_lookup(trig_angle) / TRIG_MAX_RATIO),
+      SP_CY + (int)(r * sin_lookup(trig_angle) / TRIG_MAX_RATIO)
     );
     if (!first) graphics_draw_line(ctx, prev, curr);
     prev = curr;
@@ -122,26 +176,27 @@ static void draw_spiral(GContext *ctx, int pct) {
   }
 
   /* Filled — up to battery % */
-  if (pct <= 0) return;
+  if (pct <= 0) {
+    graphics_context_set_fill_color(ctx, ink);
+    graphics_fill_circle(ctx, GPoint(SP_CX, SP_CY), 2);
+    return;
+  }
   graphics_context_set_stroke_color(ctx, ink);
   graphics_context_set_stroke_width(ctx, 3);
   first = true;
-  int filled_steps = (int)(SP_STEPS * (filled_angle / total_angle));
   for (int i = 0; i <= filled_steps; i++) {
-    float a = (total_angle * i) / SP_STEPS;
-    float r = SP_MAX_R - gap * a;
-    if (r < 1.0f) break;
-    float angle = a - M_PI / 2.0f;
-    curr = GPoint(
-      SP_CX + (int)(r * cos(angle)),
-      SP_CY + (int)(r * sin(angle))
+    int32_t trig_angle = offset + total_trig * i / SP_STEPS;
+    int32_t r = SP_MAX_R - (int32_t)SP_MAX_R * i / SP_STEPS;
+    if (r < 1) break;
+    GPoint curr = GPoint(
+      SP_CX + (int)(r * cos_lookup(trig_angle) / TRIG_MAX_RATIO),
+      SP_CY + (int)(r * sin_lookup(trig_angle) / TRIG_MAX_RATIO)
     );
     if (!first) graphics_draw_line(ctx, prev, curr);
     prev = curr;
     first = false;
   }
 
-  /* Center dot */
   graphics_context_set_fill_color(ctx, ink);
   graphics_fill_circle(ctx, GPoint(SP_CX, SP_CY), 2);
 }
@@ -152,11 +207,11 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   GColor cream = GColorFromRGB(240, 236, 224);
   GColor ink   = GColorFromRGB(42, 42, 34);
 
-  /* Full cream background */
+  /* Cream background */
   graphics_context_set_fill_color(ctx, cream);
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
 
-  /* ── 60 tick marks (clock face perimeter) ── */
+  /* 60 tick marks */
   for (int i = 0; i < 60; i++) {
     int32_t d = TOP_CTR_D + (int32_t)i * PERIM / 60;
     PerimPt p = perim_to_xy(d);
@@ -169,7 +224,7 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
     graphics_draw_line(ctx, outer, inner);
   }
 
-  /* ── Numeral bitmaps ── */
+  /* Numeral bitmaps */
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
   for (int h = 1; h <= 12; h++) {
     if (!s_bmp[h]) continue;
@@ -184,16 +239,14 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
                                  GRect(x, y, bb.size.w, bb.size.h));
   }
 
-  /* ── Clock hands ── */
+  /* Hands */
   graphics_context_set_stroke_color(ctx, ink);
-
   int32_t h_angle =
     (TRIG_MAX_ANGLE * ((s_hour % 12) * 60 + s_min)) / (12 * 60)
     - TRIG_MAX_ANGLE / 4;
   int32_t m_angle =
     (TRIG_MAX_ANGLE * s_min) / 60
     - TRIG_MAX_ANGLE / 4;
-
   draw_hand(ctx, h_angle, HOUR_LEN, HOUR_TAIL, HOUR_W);
   draw_hand(ctx, m_angle, MIN_LEN,  MIN_TAIL,  MIN_W);
 
@@ -206,20 +259,26 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   graphics_context_set_stroke_width(ctx, 1);
   graphics_draw_line(ctx, GPoint(0, 84), GPoint(144, 84));
 
-  /* ── Spiral battery ── */
+  /* Date strip */
+  draw_date(ctx);
+
+  /* Spiral battery */
   draw_spiral(ctx, s_battery_pct);
 }
 
-/* ── Battery handler ──────────────────────────────────────── */
+/* ── Handlers ─────────────────────────────────────────────── */
 static void battery_handler(BatteryChargeState state) {
   s_battery_pct = state.charge_percent;
   layer_mark_dirty(s_canvas);
 }
 
-/* ── Tick handler ─────────────────────────────────────────── */
 static void tick_handler(struct tm *t, TimeUnits changed) {
   s_hour = t->tm_hour;
   s_min  = t->tm_min;
+  s_mday = t->tm_mday;
+  s_mon  = t->tm_mon + 1;
+  s_year = t->tm_year + 1900;
+  s_wday = t->tm_wday;
   layer_mark_dirty(s_canvas);
 }
 
@@ -227,6 +286,10 @@ static void tick_handler(struct tm *t, TimeUnits changed) {
 static void window_load(Window *window) {
   for (int i = 1; i <= 12; i++)
     s_bmp[i] = gbitmap_create_with_resource(NUM_RES[i]);
+  for (int i = 1; i <= 12; i++)
+    s_month_bmp[i] = gbitmap_create_with_resource(MONTH_RES[i]);
+  for (int i = 0; i < 7; i++)
+    s_day_bmp[i] = gbitmap_create_with_resource(DAY_RES[i]);
 
   Layer *root = window_get_root_layer(window);
   s_canvas = layer_create(layer_get_bounds(root));
@@ -237,14 +300,22 @@ static void window_load(Window *window) {
   struct tm *t = localtime(&now);
   s_hour = t->tm_hour;
   s_min  = t->tm_min;
+  s_mday = t->tm_mday;
+  s_mon  = t->tm_mon + 1;
+  s_year = t->tm_year + 1900;
+  s_wday = t->tm_wday;
 
   s_battery_pct = battery_state_service_peek().charge_percent;
 }
 
 static void window_unload(Window *window) {
   layer_destroy(s_canvas);
-  for (int i = 1; i <= 12; i++)
-    if (s_bmp[i]) gbitmap_destroy(s_bmp[i]);
+  for (int i = 1; i <= 12; i++) {
+    if (s_bmp[i])       gbitmap_destroy(s_bmp[i]);
+    if (s_month_bmp[i]) gbitmap_destroy(s_month_bmp[i]);
+  }
+  for (int i = 0; i < 7; i++)
+    if (s_day_bmp[i]) gbitmap_destroy(s_day_bmp[i]);
 }
 
 /* ── App entry ────────────────────────────────────────────── */
