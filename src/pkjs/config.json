@@ -1,0 +1,20 @@
+[
+  {
+    "type": "heading",
+    "defaultValue": "Keralam Settings"
+  },
+  {
+    "type": "select",
+    "messageKey": "BATTERY_STYLE",
+    "label": "Battery Style",
+    "defaultValue": "0",
+    "options": [
+      { "label": "Spiral (Athapookkalam)", "value": "0" },
+      { "label": "Flower Radial Fill",     "value": "1" }
+    ]
+  },
+  {
+    "type": "submit",
+    "defaultValue": "Save"
+  }
+]

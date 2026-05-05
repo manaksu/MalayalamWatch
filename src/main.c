@@ -21,9 +21,9 @@
 #define MIN_TAIL     6
 #define MIN_W        2
 
-#define SP_CX       32
+#define SP_CX       39
 #define SP_CY       42
-#define SP_MAX_R    12
+#define SP_MAX_R    17
 #define SP_TURNS     3
 #define SP_STEPS   180
 
@@ -94,7 +94,13 @@ static GBitmap *s_day_bmp[7];
 static GBitmap *s_inscription;
 static int      s_hour, s_min;
 static int      s_mday, s_mon, s_year, s_wday;
-static int      s_battery_pct = 100;
+static int      s_battery_pct   = 100;
+static int      s_battery_style = 0;   /* 0=spiral, 1=flower radial */
+
+#define SETTINGS_KEY 1
+typedef struct {
+  int battery_style;
+} Settings;
 
 /* ── Hand drawing ─────────────────────────────────────────── */
 static void draw_hand(GContext *ctx, int32_t angle,
@@ -159,6 +165,227 @@ static void draw_date(GContext *ctx) {
   graphics_context_set_text_color(ctx, ink);
   graphics_draw_text(ctx, yr_str, font, GRect(x, y-2, 40, 16),
                      GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+}
+
+/* ── Flower battery (Athapookkalam radial fill) ───────────── */
+/*
+ * Draws the flower in the lower-right of the bottom half.
+ * Filled zone = charged (clockwise from top).
+ * Drained zone = outlines only, fills removed.
+ * Scaled to fit ~72×72px area centered at (108, 126).
+ */
+
+#define FL_CX    108   /* flower center x */
+#define FL_CY    126   /* flower center y */
+#define FL_R      34   /* outer radius px */
+#define FL_STEPS  60   /* arc resolution  */
+
+/* Scale a reference value (designed at r=300) to FL_R */
+#define FLS(v) ((v) * FL_R / 300)
+
+static void draw_flower_segment(GContext *ctx, bool filled,
+                                int32_t a_start, int32_t a_end) {
+  /* Draw flower elements, clipped to the arc sector a_start..a_end
+   * (Pebble trig angles, TRIG_MAX_ANGLE = full circle)
+   * filled=true  → draw with fills (charged zone)
+   * filled=false → outlines only (drained zone)
+   */
+
+  /* We approximate the clip by drawing individual elements
+   * and checking if their center angle falls in range.
+   * For continuous shapes (rings, petals) we use GPath clipping
+   * via the graphics clip rect — simplified: draw all, rely on
+   * the layer clip rect set by the caller. */
+
+  GColor ink    = GColorFromRGB(42, 42, 34);
+  GColor c_dark = GColorFromRGB(42, 42, 32);
+  GColor c_mid  = GColorFromRGB(122, 118, 104);
+  GColor c_band = GColorFromRGB(216, 212, 200);
+  GColor cream  = GColorFromRGB(240, 236, 224);
+
+  /* Outer ring */
+  graphics_context_set_stroke_color(ctx, ink);
+  graphics_context_set_stroke_width(ctx, FLS(5) < 1 ? 1 : FLS(5));
+  if (filled) {
+    graphics_context_set_fill_color(ctx, GColorFromRGB(74, 72, 64));
+    graphics_fill_circle(ctx, GPoint(FL_CX, FL_CY), FLS(300));
+  }
+  graphics_draw_circle(ctx, GPoint(FL_CX, FL_CY), FLS(300));
+
+  /* Inner ring — cream fill */
+  if (filled) {
+    graphics_context_set_fill_color(ctx, cream);
+    graphics_fill_circle(ctx, GPoint(FL_CX, FL_CY), FLS(276));
+  }
+  graphics_context_set_stroke_width(ctx, FLS(3) < 1 ? 1 : FLS(3));
+  graphics_draw_circle(ctx, GPoint(FL_CX, FL_CY), FLS(276));
+
+  /* Dot band */
+  if (filled) {
+    graphics_context_set_fill_color(ctx, c_band);
+    graphics_fill_circle(ctx, GPoint(FL_CX, FL_CY), FLS(230));
+    graphics_context_set_fill_color(ctx, cream);
+    graphics_fill_circle(ctx, GPoint(FL_CX, FL_CY), FLS(158));
+  }
+
+  /* 6 petals */
+  for (int i = 0; i < 6; i++) {
+    int32_t pangle = (TRIG_MAX_ANGLE * i) / 6;
+    int32_t pc = cos_lookup(pangle - TRIG_MAX_ANGLE/4);
+    int32_t ps = sin_lookup(pangle - TRIG_MAX_ANGLE/4);
+    GPoint tip = {
+      FL_CX + FLS(118) * pc / TRIG_MAX_RATIO,
+      FL_CY + FLS(118) * ps / TRIG_MAX_RATIO
+    };
+    /* Draw petal as ellipse approximation — just a line for Pebble simplicity */
+    GColor pc_col = (i % 2 == 0) ? c_dark : c_mid;
+    if (filled) {
+      graphics_context_set_stroke_color(ctx, pc_col);
+    } else {
+      graphics_context_set_stroke_color(ctx, ink);
+    }
+    graphics_context_set_stroke_width(ctx, 2);
+    graphics_draw_line(ctx, GPoint(FL_CX, FL_CY), tip);
+  }
+
+  /* 16 dots */
+  const GColor dot_cols[4] = {
+    GColorFromRGB(42,42,32), GColorFromRGB(122,118,104),
+    GColorFromRGB(184,180,168), GColorFromRGB(232,228,216)
+  };
+  for (int i = 0; i < 16; i++) {
+    int32_t dangle = (TRIG_MAX_ANGLE * i) / 16 - TRIG_MAX_ANGLE/4;
+    int32_t dc = cos_lookup(dangle);
+    int32_t ds = sin_lookup(dangle);
+    GPoint dp = {
+      FL_CX + FLS(195) * dc / TRIG_MAX_RATIO,
+      FL_CY + FLS(195) * ds / TRIG_MAX_RATIO
+    };
+    if (filled) {
+      graphics_context_set_fill_color(ctx, dot_cols[i % 4]);
+      graphics_fill_circle(ctx, dp, FLS(16));
+    }
+    graphics_context_set_stroke_color(ctx, ink);
+    graphics_context_set_stroke_width(ctx, 1);
+    graphics_draw_circle(ctx, dp, FLS(16));
+  }
+
+  /* Ticks */
+  for (int i = 0; i < 16; i++) {
+    int32_t tangle = (TRIG_MAX_ANGLE * i) / 16 - TRIG_MAX_ANGLE/4;
+    int32_t tc2 = cos_lookup(tangle);
+    int32_t ts  = sin_lookup(tangle);
+    GPoint outer = {
+      FL_CX + FLS(276) * tc2 / TRIG_MAX_RATIO,
+      FL_CY + FLS(276) * ts  / TRIG_MAX_RATIO
+    };
+    GPoint inner = {
+      FL_CX + FLS(252) * tc2 / TRIG_MAX_RATIO,
+      FL_CY + FLS(252) * ts  / TRIG_MAX_RATIO
+    };
+    graphics_context_set_stroke_color(ctx, ink);
+    graphics_context_set_stroke_width(ctx, 1);
+    graphics_draw_line(ctx, outer, inner);
+  }
+
+  /* Center */
+  if (filled) {
+    graphics_context_set_fill_color(ctx, c_dark);
+    graphics_fill_circle(ctx, GPoint(FL_CX, FL_CY), FLS(18));
+  }
+  graphics_context_set_stroke_color(ctx, ink);
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_draw_circle(ctx, GPoint(FL_CX, FL_CY), FLS(18));
+}
+
+static void draw_flower_battery(GContext *ctx, int pct) {
+  /* Clip to filled sector (top, clockwise = charged) */
+  /* Filled angle in trig units */
+  int32_t filled_trig = (int32_t)TRIG_MAX_ANGLE * pct / 100;
+  int32_t start_trig  = -TRIG_MAX_ANGLE / 4;  /* 12 o'clock */
+
+  /* Step through FL_STEPS arc segments.
+   * For each segment, check if it falls in filled or drained zone.
+   * We approximate by drawing the whole flower twice with GRect clip. */
+
+  /* Pass 1: filled zone — clip rect approximation via full draw + mask */
+  /* Pass 2: outline zone */
+  /* Pebble doesn't support arbitrary clip paths, so we use a simpler
+   * approach: draw filled, then overdraw outline-only in the drained sector
+   * using cream fills to erase the existing fills. */
+
+  /* Draw full filled flower first */
+  draw_flower_segment(ctx, true, 0, TRIG_MAX_ANGLE);
+
+  if (pct < 100) {
+    /* Overdraw drained sector: fill shapes with cream, then redraw outlines */
+    GColor cream = GColorFromRGB(240, 236, 224);
+    GColor ink   = GColorFromRGB(42, 42, 34);
+    GColor c_band= GColorFromRGB(216, 212, 200);
+
+    /* We simulate clip by drawing covering rects in the drained sector.
+     * Using a polygon approximation of the pie sector. */
+    int32_t drain_start = start_trig + filled_trig;
+    int32_t drain_end   = start_trig + TRIG_MAX_ANGLE;
+
+    /* Fill the drained pie sector with cream to erase fills */
+    graphics_context_set_fill_color(ctx, cream);
+    /* Draw pie sector as triangle fan */
+    for (int s = 0; s < FL_STEPS; s++) {
+      int32_t a0 = drain_start + (drain_end - drain_start) * s     / FL_STEPS;
+      int32_t a1 = drain_start + (drain_end - drain_start) * (s+1) / FL_STEPS;
+      GPoint p0 = {
+        FL_CX + (FL_R+4) * cos_lookup(a0) / TRIG_MAX_RATIO,
+        FL_CY + (FL_R+4) * sin_lookup(a0) / TRIG_MAX_RATIO
+      };
+      GPoint p1 = {
+        FL_CX + (FL_R+4) * cos_lookup(a1) / TRIG_MAX_RATIO,
+        FL_CY + (FL_R+4) * sin_lookup(a1) / TRIG_MAX_RATIO
+      };
+      /* Fill triangle: center, p0, p1 */
+      GPoint tri[3] = { GPoint(FL_CX, FL_CY), p0, p1 };
+      GPath *path = gpath_create(&(GPathInfo){ .num_points=3, .points=tri });
+      gpath_draw_filled(ctx, path);
+      gpath_destroy(path);
+    }
+
+    /* Redraw outlines in the drained sector without fills */
+    for (int i = 0; i < 16; i++) {
+      int32_t dangle = (TRIG_MAX_ANGLE * i) / 16 - TRIG_MAX_ANGLE/4;
+      /* Check if dot is in drained zone */
+      int32_t norm = ((dangle - drain_start) % TRIG_MAX_ANGLE + TRIG_MAX_ANGLE) % TRIG_MAX_ANGLE;
+      int32_t range= ((drain_end - drain_start) % TRIG_MAX_ANGLE + TRIG_MAX_ANGLE) % TRIG_MAX_ANGLE;
+      if (norm <= range) {
+        int32_t dc = cos_lookup(dangle), ds = sin_lookup(dangle);
+        GPoint dp = {
+          FL_CX + FLS(195)*dc/TRIG_MAX_RATIO,
+          FL_CY + FLS(195)*ds/TRIG_MAX_RATIO
+        };
+        graphics_context_set_stroke_color(ctx, ink);
+        graphics_context_set_stroke_width(ctx, 1);
+        graphics_draw_circle(ctx, dp, FLS(16));
+      }
+    }
+
+    /* Redraw ring outlines */
+    graphics_context_set_stroke_color(ctx, ink);
+    graphics_context_set_stroke_width(ctx, 2);
+    graphics_draw_circle(ctx, GPoint(FL_CX, FL_CY), FLS(300));
+    graphics_draw_circle(ctx, GPoint(FL_CX, FL_CY), FLS(276));
+    graphics_draw_circle(ctx, GPoint(FL_CX, FL_CY), FLS(18));
+  }
+}
+
+/* ── AppMessage handler ───────────────────────────────────── */
+static void inbox_received(DictionaryIterator *iter, void *context) {
+  Tuple *style_t = dict_find(iter, MESSAGE_KEY_BATTERY_STYLE);
+  if (style_t) {
+    s_battery_style = (int)style_t->value->int32;
+    /* Persist */
+    Settings s = { .battery_style = s_battery_style };
+    persist_write_data(SETTINGS_KEY, &s, sizeof(s));
+    layer_mark_dirty(s_canvas);
+  }
 }
 
 /* ── Spiral drawing ───────────────────────────────────────── */
@@ -275,8 +502,12 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   /* Date strip */
   draw_date(ctx);
 
-  /* Spiral battery — inside clock face, left side */
-  draw_spiral(ctx, s_battery_pct);
+  /* Battery indicator — style chosen by user */
+  if (s_battery_style == 1) {
+    draw_flower_battery(ctx, s_battery_pct);
+  } else {
+    draw_spiral(ctx, s_battery_pct);
+  }
 
   /* Ghost numeral grid 4×3 — y=100..148
    * Each ghost bitmap is exactly 36×16px (cell sized)
@@ -288,7 +519,7 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
     int col = i % 4;
     int row = i / 4;
     int x = col * 36;
-    int y = 100 + row * 14;
+    int y = 103 + row * 14;
     GRect bb = gbitmap_get_bounds(s_ghost_bmp[i+1]);
     graphics_draw_bitmap_in_rect(ctx, s_ghost_bmp[i+1], GRect(x, y, bb.size.w, bb.size.h));
   }
@@ -362,6 +593,12 @@ static void window_unload(Window *window) {
 
 /* ── App entry ────────────────────────────────────────────── */
 static void init(void) {
+  /* Load persisted settings */
+  Settings s;
+  if (persist_read_data(SETTINGS_KEY, &s, sizeof(s)) == sizeof(s)) {
+    s_battery_style = s.battery_style;
+  }
+
   s_window = window_create();
   window_set_window_handlers(s_window, (WindowHandlers){
     .load   = window_load,
@@ -370,6 +607,10 @@ static void init(void) {
   window_stack_push(s_window, true);
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   battery_state_service_subscribe(battery_handler);
+
+  /* AppMessage for settings */
+  app_message_register_inbox_received(inbox_received);
+  app_message_open(64, 64);
 }
 
 static void deinit(void) {
