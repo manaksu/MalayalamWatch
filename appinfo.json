@@ -1,9 +1,9 @@
 {
-  "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "uuid": "a3fbc9410-337e-4ce0-89c7-7cd048571c35",
   "shortName": "Keralam",
   "longName": "Keralam Malayalam Clock",
   "companyName": "manaksu",
-  "versionLabel": "1.0",
+  "versionLabel": "2.10",
   "sdkVersion": "3",
   "targetPlatforms": [
     "basalt"
@@ -15,12 +15,12 @@
     "configurable"
   ],
   "appKeys": {
-    "BATTERY_STYLE": 0,
-    "BATTERY_POS": 1,
-    "HAND_STYLE": 2,
+    "BATTERY_POS": 0,
+    "BATTERY_STYLE": 1,
+    "BG_STYLE": 2,
     "BOLD_STYLE": 3,
-    "BG_STYLE": 4,
-    "CORNER_ROT": 5
+    "CORNER_ROT": 4,
+    "HAND_STYLE": 5
   },
   "resources": {
     "media": [

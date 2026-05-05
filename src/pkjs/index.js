@@ -1,100 +1,101 @@
+/* Keralam — PebbleKit JS
+ * Keys (alphabetical order matching appinfo.json):
+ *   BATTERY_STYLE=0, BATTERY_POS=1, HAND_STYLE=2,
+ *   BOLD_STYLE=3,    BG_STYLE=4,    CORNER_ROT=5
+ */
+
+function load() {
+  return {
+    bs:  +(localStorage.getItem('bs')  || '0'),
+    bp:  +(localStorage.getItem('bp')  || '0'),
+    hs:  +(localStorage.getItem('hs')  || '0'),
+    bld: +(localStorage.getItem('bld') || '0'),
+    bg:  +(localStorage.getItem('bg')  || '0'),
+    cr:  +(localStorage.getItem('cr')  || '1')
+  };
+}
+
+function save(c) {
+  localStorage.setItem('bs',  c.bs);
+  localStorage.setItem('bp',  c.bp);
+  localStorage.setItem('hs',  c.hs);
+  localStorage.setItem('bld', c.bld);
+  localStorage.setItem('bg',  c.bg);
+  localStorage.setItem('cr',  c.cr);
+}
+
+function send(c) {
+  var m = {};
+  m[0] = c.bp;   /* BATTERY_POS   */
+  m[1] = c.bs;   /* BATTERY_STYLE */
+  m[2] = c.bg;   /* BG_STYLE      */
+  m[3] = c.bld;  /* BOLD_STYLE    */
+  m[4] = c.cr;   /* CORNER_ROT    */
+  m[5] = c.hs;   /* HAND_STYLE    */
+  Pebble.sendAppMessage(m,
+    function() { console.log('Keralam settings sent ok'); },
+    function(e) { console.log('Keralam settings fail: ' + JSON.stringify(e)); }
+  );
+}
+
+function sel(arr, cur) {
+  return arr.map(function(l, i) {
+    return '<option value=' + i + (i === cur ? ' selected' : '') + '>' + l + '</option>';
+  }).join('');
+}
+
+function page(c) {
+  var s = '<style>'
+    + 'body{font-family:sans-serif;background:#f0ece0;color:#1a1610;margin:0;padding:16px}'
+    + 'h2{font-size:16px;margin:0 0 14px}'
+    + 'label{display:block;font-size:12px;color:#666;margin-bottom:3px}'
+    + 'select{width:100%;padding:8px;font-size:14px;border:1px solid #ccc;border-radius:5px;background:#fff;margin-bottom:14px}'
+    + 'button{width:100%;padding:12px;font-size:15px;background:#1a1610;color:#f0ece0;border:none;border-radius:5px}'
+    + '</style>';
+
+  var b = '<h2>Keralam Settings</h2>'
+    + '<label>Background</label><select id="bg">'
+    + sel(['Cream','White','Light Grey'], c.bg) + '</select>'
+    + '<label>Battery Style</label><select id="bs">'
+    + sel(['Circular Spiral','Flower Radial','Square Spiral','Battery Bar'], c.bs) + '</select>'
+    + '<label>Battery Position</label><select id="bp">'
+    + sel(['On Watch Face','Bottom Left'], c.bp) + '</select>'
+    + '<label>Hand Style</label><select id="hs">'
+    + sel(['Smooth','Pixel Blocky','Pixel Tapered','Pixel Literary'], c.hs) + '</select>'
+    + '<label>Numerals</label><select id="bld">'
+    + sel(['Regular','Bold'], c.bld) + '</select>'
+    + '<label>Corner Numerals</label><select id="cr">'
+    + sel(['Flat','Rotated'], c.cr) + '</select>'
+    + '<button id="sv">Save</button>';
+
+  var js = '<script>'
+    + 'document.getElementById("sv").onclick=function(){'
+    + 'function g(id){return +document.getElementById(id).value;}'
+    + 'var r={bs:g("bs"),bp:g("bp"),hs:g("hs"),bld:g("bld"),bg:g("bg"),cr:g("cr")};'
+    + 'location.href="pebblejs://close#"+encodeURIComponent(JSON.stringify(r));'
+    + '};'
+    + '<\/script>';
+
+  return 'data:text/html,' + encodeURIComponent(
+    '<html><head><meta name=viewport content="width=device-width,initial-scale=1">'
+    + s + '</head><body>' + b + js + '</body></html>'
+  );
+}
+
 Pebble.addEventListener('ready', function() {
-  console.log('Keralam JS ready');
+  console.log('Keralam ready');
 });
 
 Pebble.addEventListener('showConfiguration', function() {
-  var batt = localStorage.getItem('battery_style') || '0';
-  var bpos = localStorage.getItem('battery_pos')   || '0';
-  var hand = localStorage.getItem('hand_style')    || '0';
-  var bold = localStorage.getItem('bold_style')    || '0';
-  var bg   = localStorage.getItem('bg_style')      || '0';
-  var crot = localStorage.getItem('corner_rot')    || '1';
-
-  var html = '<!DOCTYPE html><html><head>'
-    + '<meta name="viewport" content="width=device-width,initial-scale=1">'
-    + '<style>'
-    + 'body{font-family:sans-serif;background:#f0ece0;color:#1a1610;margin:0;padding:20px;}'
-    + 'h2{font-size:18px;margin:0 0 20px;}'
-    + 'label{display:block;font-size:14px;margin-bottom:6px;color:#555;}'
-    + 'select{width:100%;padding:10px;font-size:15px;border:1px solid #ccc;'
-    + 'border-radius:6px;background:#fff;margin-bottom:20px;}'
-    + 'button{width:100%;padding:14px;font-size:16px;background:#1a1610;'
-    + 'color:#f0ece0;border:none;border-radius:6px;cursor:pointer;}'
-    + '</style></head><body>'
-    + '<h2>Keralam Settings</h2>'
-
-    + '<label>Background</label>'
-    + '<select id="bg">'
-    + '<option value="0"' + (bg=='0'?' selected':'') + '>Cream (#f0ece0)</option>'
-    + '<option value="1"' + (bg=='1'?' selected':'') + '>White (#FFFFFF)</option>'
-    + '<option value="2"' + (bg=='2'?' selected':'') + '>Light Grey (#AAAAAA)</option>'
-    + '</select>'
-
-    + '<label>Battery Style</label>'
-    + '<select id="bs">'
-    + '<option value="0"' + (batt=='0'?' selected':'') + '>Circular Spiral</option>'
-    + '<option value="1"' + (batt=='1'?' selected':'') + '>Flower Radial Fill</option>'
-    + '<option value="2"' + (batt=='2'?' selected':'') + '>Square Spiral (Aldo)</option>'
-    + '<option value="3"' + (batt=='3'?' selected':'') + '>Battery % (Aldo)</option>'
-    + '</select>'
-
-    + '<label>Battery Position</label>'
-    + '<select id="bp">'
-    + '<option value="0"' + (bpos=='0'?' selected':'') + '>On Watch Face</option>'
-    + '<option value="1"' + (bpos=='1'?' selected':'') + '>Bottom Left</option>'
-    + '</select>'
-
-    + '<label>Hand Style</label>'
-    + '<select id="hs">'
-    + '<option value="0"' + (hand=='0'?' selected':'') + '>Smooth Line</option>'
-    + '<option value="1"' + (hand=='1'?' selected':'') + '>Pixel Blocky</option>'
-    + '<option value="2"' + (hand=='2'?' selected':'') + '>Pixel Tapered</option>'
-    + '</select>'
-
-    + '<label>Numeral Weight</label>'
-    + '<select id="bld">'
-    + '<option value="0"' + (bold=='0'?' selected':'') + '>Regular</option>'
-    + '<option value="1"' + (bold=='1'?' selected':'') + '>Bold</option>'
-    + '</select>'
-
-    + '<label>Corner Numerals</label>'
-    + '<select id="cr">'
-    + '<option value="1"' + (crot=='1'?' selected':'') + '>Rotated 45°</option>'
-    + '<option value="0"' + (crot=='0'?' selected':'') + '>Flat</option>'
-    + '</select>'
-
-    + '<button onclick="save()">Save</button>'
-    + '<script>'
-    + 'function save(){'
-    + 'var g=document.getElementById("bg").value;'
-    + 'var b=document.getElementById("bs").value;'
-    + 'var p=document.getElementById("bp").value;'
-    + 'var h=document.getElementById("hs").value;'
-    + 'var d=document.getElementById("bld").value;'
-    + 'var r=document.getElementById("cr").value;'
-    + 'localStorage.setItem("bg_style",g);'
-    + 'localStorage.setItem("battery_style",b);'
-    + 'localStorage.setItem("battery_pos",p);'
-    + 'localStorage.setItem("hand_style",h);'
-    + 'localStorage.setItem("bold_style",d);'
-    + 'localStorage.setItem("corner_rot",r);'
-    + 'location.href="pebblejs://close#"+encodeURIComponent(JSON.stringify({'
-    + 'BG_STYLE:parseInt(g),BATTERY_STYLE:parseInt(b),BATTERY_POS:parseInt(p),'
-    + 'HAND_STYLE:parseInt(h),BOLD_STYLE:parseInt(d),CORNER_ROT:parseInt(r)}));'
-    + '}'
-    + '</script></body></html>';
-
-  Pebble.openURL('data:text/html,' + encodeURIComponent(html));
+  Pebble.openURL(page(load()));
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
-  if (e.response) {
-    try {
-      var config = JSON.parse(decodeURIComponent(e.response));
-      Pebble.sendAppMessage(config,
-        function() { console.log('Settings sent ok'); },
-        function(e) { console.log('Settings failed: ' + JSON.stringify(e)); }
-      );
-    } catch(err) { console.log('Parse error: ' + err); }
-  }
+  if (!e || !e.response || e.response === '' || e.response === 'CANCELLED') return;
+  var raw = e.response;
+  if (raw.indexOf('#') !== -1) raw = raw.substring(raw.lastIndexOf('#') + 1);
+  var c;
+  try { c = JSON.parse(decodeURIComponent(raw)); } catch(err) { return; }
+  save(c);
+  send(c);
 });

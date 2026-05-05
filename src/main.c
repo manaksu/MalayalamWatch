@@ -160,7 +160,47 @@ static void draw_pixel_tapered(GContext *ctx, int32_t angle,
   }
 }
 
-/* ── Hand drawing (smooth) ────────────────────────────────── */
+/* ── Literary pixel hands (from Literary Watchface) ──────── */
+/*
+ * 2×2 pixel squares along the hand path, snapped to 3px grid.
+ * Hour hand: green  (#2a7a2a)
+ * Minute hand: red  (#aa2020)
+ * Same clk_px grid-snap technique as the literary watch.
+ */
+#define LIT_PX_SZ   2
+#define LIT_PX_STEP 3
+
+static void lit_px(GContext *ctx, int x, int y) {
+  int gx = ((x - CX + LIT_PX_STEP/2) / LIT_PX_STEP) * LIT_PX_STEP + CX;
+  int gy = ((y - CY + LIT_PX_STEP/2) / LIT_PX_STEP) * LIT_PX_STEP + CY;
+  graphics_fill_rect(ctx,
+    GRect(gx - LIT_PX_SZ/2, gy - LIT_PX_SZ/2, LIT_PX_SZ, LIT_PX_SZ),
+    0, GCornerNone);
+}
+
+static void draw_literary_hands(GContext *ctx, int32_t h_angle, int32_t m_angle) {
+  GColor ink = GColorFromRGB(42, 42, 34);
+
+  /* Minute hand — dark ink */
+  graphics_context_set_fill_color(ctx, ink);
+  for (int r = LIT_PX_STEP * 2; r <= MIN_LEN; r += LIT_PX_STEP) {
+    int x = CX + (int)(sin_lookup(m_angle + TRIG_MAX_ANGLE/4) * r / TRIG_MAX_RATIO);
+    int y = CY - (int)(cos_lookup(m_angle + TRIG_MAX_ANGLE/4) * r / TRIG_MAX_RATIO);
+    lit_px(ctx, x, y);
+  }
+
+  /* Hour hand — dark ink */
+  graphics_context_set_fill_color(ctx, ink);
+  for (int r = LIT_PX_STEP * 2; r <= HOUR_LEN; r += LIT_PX_STEP) {
+    int x = CX + (int)(sin_lookup(h_angle + TRIG_MAX_ANGLE/4) * r / TRIG_MAX_RATIO);
+    int y = CY - (int)(cos_lookup(h_angle + TRIG_MAX_ANGLE/4) * r / TRIG_MAX_RATIO);
+    lit_px(ctx, x, y);
+  }
+
+  /* Centre — solid ink dot */
+  graphics_context_set_fill_color(ctx, ink);
+  graphics_fill_circle(ctx, GPoint(CX, CY), 3);
+}
 static void draw_hand(GContext *ctx, int32_t angle,
                       int len, int tail, int width) {
   graphics_context_set_stroke_width(ctx, width);
@@ -233,9 +273,9 @@ static void draw_date(GContext *ctx) {
  * Scaled to fit ~72×72px area centered at (108, 126).
  */
 
-#define FL_CX    108   /* flower center x */
-#define FL_CY    126   /* flower center y */
-#define FL_R      34   /* outer radius px */
+#define FL_CX    39   /* same x as spiral — left side of clock face */
+#define FL_CY    42   /* same y as spiral — vertically centered */
+#define FL_R      20  /* smaller radius to fit inside clock face */
 #define FL_STEPS  60   /* arc resolution  */
 
 /* Scale a reference value (designed at r=300) to FL_R */
@@ -434,14 +474,20 @@ static void draw_flower_battery(GContext *ctx, int pct) {
 }
 
 /* ── AppMessage handler ───────────────────────────────────── */
+static void inbox_dropped(AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Msg dropped: %d", (int)reason);
+}
+
 static void inbox_received(DictionaryIterator *iter, void *context) {
   Tuple *t;
-  if ((t = dict_find(iter, MESSAGE_KEY_BATTERY_STYLE))) s_battery_style = (int)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_BATTERY_POS)))   s_battery_pos   = (int)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_HAND_STYLE)))    s_hand_style    = (int)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_BOLD_STYLE)))    s_bold_style    = (int)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_BG_STYLE)))      s_bg_style      = (int)t->value->int32;
-  if ((t = dict_find(iter, MESSAGE_KEY_CORNER_ROT)))    s_corner_rot    = (int)t->value->int32;
+  /* Alphabetical: BATTERY_POS=0, BATTERY_STYLE=1, BG_STYLE=2,
+                   BOLD_STYLE=3,  CORNER_ROT=4,    HAND_STYLE=5 */
+  if ((t = dict_find(iter, 0))) s_battery_pos   = (int)t->value->int32;
+  if ((t = dict_find(iter, 1))) s_battery_style = (int)t->value->int32;
+  if ((t = dict_find(iter, 2))) s_bg_style      = (int)t->value->int32;
+  if ((t = dict_find(iter, 3))) s_bold_style    = (int)t->value->int32;
+  if ((t = dict_find(iter, 4))) s_corner_rot    = (int)t->value->int32;
+  if ((t = dict_find(iter, 5))) s_hand_style    = (int)t->value->int32;
 
   Settings s = { s_battery_style, s_battery_pos, s_hand_style, s_bold_style, s_bg_style, s_corner_rot };
   persist_write_data(SETTINGS_KEY, &s, sizeof(s));
@@ -501,49 +547,67 @@ static void draw_spiral(GContext *ctx, int pct) {
   graphics_fill_circle(ctx, GPoint(SP_CX, SP_CY), 2);
 }
 
-/* ── Square spiral battery (Aldo style) ───────────────────── */
-#define SQ_RINGS  4
-#define SQ_GAP    4
-#define SQ_SEGS  (SQ_RINGS * 4)
+/* ── Square spiral battery (Aldo style — exact copy) ──────── */
+static const GPoint s_sq_spiral[] = {
+  {6,6},{38,6},{38,38},{6,38},{6,10},
+  {10,10},{34,10},{34,34},{10,34},{10,14},
+  {14,14},{30,14},{30,30},{14,30},{14,18},
+  {18,18},{26,18},{26,26},{18,26},{18,22},
+  {22,22}
+};
+#define SQ_SPIRAL_LEN 21
 
 static void draw_square_spiral(GContext *ctx, int pct) {
   GColor ink   = GColorFromRGB(42, 42, 34);
   GColor ghost = GColorFromRGB(225, 221, 212);
 
-  GPoint pts[SQ_SEGS + 1];
-  int idx = 0;
-  pts[idx++] = GPoint(SP_CX, SP_CY);
-  for (int ring = 1; ring <= SQ_RINGS; ring++) {
-    int s = ring * SQ_GAP;
-    pts[idx++] = GPoint(SP_CX + s, SP_CY + s);
-    pts[idx++] = GPoint(SP_CX + s, SP_CY - s);
-    pts[idx++] = GPoint(SP_CX - s, SP_CY - s);
-    pts[idx++] = GPoint(SP_CX - s, SP_CY + s + SQ_GAP);
+  /* Total path length */
+  int total_len = 0;
+  for (int i = 0; i < SQ_SPIRAL_LEN - 1; i++) {
+    int dx = s_sq_spiral[i+1].x - s_sq_spiral[i].x;
+    int dy = s_sq_spiral[i+1].y - s_sq_spiral[i].y;
+    total_len += (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
   }
 
-  int total_segs = idx - 1;
-  int filled_segs = total_segs * pct / 100;
+  int filled = total_len * pct / 100;
+  int drawn  = 0;
 
-  graphics_context_set_stroke_color(ctx, ghost);
-  graphics_context_set_stroke_width(ctx, 1);
-  for (int i = 0; i < total_segs; i++)
-    graphics_draw_line(ctx, pts[i], pts[i+1]);
-
-  graphics_context_set_stroke_color(ctx, ink);
   graphics_context_set_stroke_width(ctx, 2);
-  for (int i = 0; i < filled_segs; i++)
-    graphics_draw_line(ctx, pts[i], pts[i+1]);
 
-  graphics_context_set_fill_color(ctx, ink);
-  graphics_fill_circle(ctx, GPoint(SP_CX, SP_CY), 2);
+  for (int i = 0; i < SQ_SPIRAL_LEN - 1; i++) {
+    int dx  = s_sq_spiral[i+1].x - s_sq_spiral[i].x;
+    int dy  = s_sq_spiral[i+1].y - s_sq_spiral[i].y;
+    int seg = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
+
+    if (drawn + seg <= filled) {
+      /* Whole segment filled */
+      graphics_context_set_stroke_color(ctx, ink);
+      graphics_draw_line(ctx, s_sq_spiral[i], s_sq_spiral[i+1]);
+      drawn += seg;
+    } else if (drawn < filled) {
+      /* Partial segment — split at fill boundary */
+      int rem = filled - drawn;
+      GPoint mid = GPoint(s_sq_spiral[i].x + dx * rem / seg,
+                          s_sq_spiral[i].y + dy * rem / seg);
+      graphics_context_set_stroke_color(ctx, ink);
+      graphics_draw_line(ctx, s_sq_spiral[i], mid);
+      graphics_context_set_stroke_color(ctx, ghost);
+      graphics_draw_line(ctx, mid, s_sq_spiral[i+1]);
+      drawn = filled;
+    } else {
+      /* Ghost */
+      graphics_context_set_stroke_color(ctx, ghost);
+      graphics_draw_line(ctx, s_sq_spiral[i], s_sq_spiral[i+1]);
+    }
+  }
 }
 
-/* ── Percent text battery (Aldo style) ────────────────────── */
+/* ── Standard battery bar (no % text) ────────────────────── */
 static void draw_pct_battery(GContext *ctx, int pct) {
   GColor ink = GColorFromRGB(42, 42, 34);
-  GColor fill = (pct <= 20) ? GColorFromRGB(120, 20, 20) : ink;
 
-  const int BX = 6, BY = 148, BW = 54, BH = 10, TIP = 4;
+  /* Standard size: 28×8px, centered in lower-left area */
+  const int BX = 6, BY = 152, BW = 28, BH = 7, TIP = 4;
 
   /* Outline */
   graphics_context_set_stroke_color(ctx, ink);
@@ -557,18 +621,10 @@ static void draw_pct_battery(GContext *ctx, int pct) {
   /* Fill bar */
   int fill_w = (BW - 2) * pct / 100;
   if (fill_w > 0) {
+    GColor fill = (pct <= 20) ? GColorFromRGB(120, 20, 20) : ink;
     graphics_context_set_fill_color(ctx, fill);
     graphics_fill_rect(ctx, GRect(BX+1, BY+1, fill_w, BH-2), 0, GCornerNone);
   }
-
-  /* % label */
-  char buf[6];
-  snprintf(buf, sizeof(buf), "%d%%", pct);
-  graphics_context_set_text_color(ctx, ink);
-  graphics_draw_text(ctx, buf,
-    fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD),
-    GRect(BX, BY+BH+2, 60, 18),
-    GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
 }
 
 /* ── Canvas draw ──────────────────────────────────────────── */
@@ -689,10 +745,13 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
     /* Pixel blocky — 3×3 hour, 2×2 minute */
     draw_pixel_blocky(ctx, h_angle, HOUR_LEN, HOUR_TAIL, 3);
     draw_pixel_blocky(ctx, m_angle, MIN_LEN,  MIN_TAIL,  2);
-  } else {
+  } else if (s_hand_style == 2) {
     /* Pixel tapered */
     draw_pixel_tapered(ctx, h_angle, HOUR_LEN, HOUR_TAIL);
     draw_pixel_tapered(ctx, m_angle, MIN_LEN,  MIN_TAIL);
+  } else {
+    /* Style 3 — Literary pixel (green hour, red minute, grid-snapped) */
+    draw_literary_hands(ctx, h_angle, m_angle);
   }
 
   /* Center cap */
@@ -836,9 +895,9 @@ static void init(void) {
   tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
   battery_state_service_subscribe(battery_handler);
 
-  /* AppMessage for settings */
-  app_message_register_inbox_received(inbox_received);
+  /* AppMessage — open before register, matching noise watch pattern */
   app_message_open(64, 64);
+  app_message_register_inbox_received(inbox_received);
 }
 
 static void deinit(void) {
