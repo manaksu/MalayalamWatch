@@ -27,34 +27,6 @@
 #define SP_TURNS     3
 #define SP_STEPS   180
 
-#define PERIM       456
-#define TOP_CTR_D    72
-
-typedef struct { int16_t x; int16_t y; int8_t edge; } PerimPt;
-
-static PerimPt perim_to_xy(int32_t d) {
-  d = ((d % PERIM) + PERIM) % PERIM;
-  PerimPt p;
-  if (d < 144)             { p.x = d;             p.y = 0;            p.edge = 0; }
-  else if (d < 144+84)     { p.x = 144;            p.y = d-144;        p.edge = 1; }
-  else if (d < 144+84+144) { p.x = 144-(d-144-84); p.y = 84;           p.edge = 2; }
-  else                     { p.x = 0;              p.y = 84-(d-144-84-144); p.edge = 3; }
-  return p;
-}
-
-static GPoint inward(PerimPt p, int dist) {
-  switch(p.edge) {
-    case 0: return GPoint(p.x, p.y + dist);
-    case 1: return GPoint(p.x - dist, p.y);
-    case 2: return GPoint(p.x, p.y - dist);
-    default: return GPoint(p.x + dist, p.y);
-  }
-}
-
-static const int8_t NUM_DY[13] = {
-  0, -2,+2, 0,-2,+2,+2,+2,-2, 0,+2,-2,-2
-};
-
 static const uint32_t NUM_RES[13] = {
   0,
   RESOURCE_ID_NUM_01, RESOURCE_ID_NUM_02, RESOURCE_ID_NUM_03,
@@ -384,7 +356,6 @@ static void draw_flower_battery(GContext *ctx, int pct) {
     /* Overdraw drained sector: fill shapes with cream, then redraw outlines */
     GColor cream = GColorFromRGB(240, 236, 224);
     GColor ink   = GColorFromRGB(42, 42, 34);
-    GColor c_band= GColorFromRGB(216, 212, 200);
 
     /* We simulate clip by drawing covering rects in the drained sector.
      * Using a polygon approximation of the pie sector. */
@@ -517,8 +488,8 @@ static void draw_spiral(GContext *ctx, int pct) {
  * Left       x=17:   09  y=42
  * Right      x=127:  03  y=42
  */
-static const int16_t NUM_X[13] = { 0, 102, 126, 127, 126, 102, 72, 51, 18, 17, 18, 51, 72 };
-static const int16_t NUM_Y[13] = { 0,  14,  14,  42,  70,  70, 70, 70, 70, 42, 14, 14, 14 };
+static const int16_t NUM_X[13] = { 0, 104, 128, 130, 128, 104, 72, 50, 16, 14, 16, 50, 72 };
+static const int16_t NUM_Y[13] = { 0,  12,  12,  42,  72,  72, 72, 72, 72, 42, 12, 12, 12 };
 
 static void canvas_draw(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
