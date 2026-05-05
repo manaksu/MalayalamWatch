@@ -43,6 +43,10 @@ static const uint32_t NUM_BOLD_RES[13] = {
   RESOURCE_ID_NUM_B10, RESOURCE_ID_NUM_B11, RESOURCE_ID_NUM_B12,
 };
 
+/* Rotated corner bitmaps: indices 0=10, 1=02, 2=08, 3=04 */
+static const uint32_t NUM_ROT_RES[4]      = { RESOURCE_ID_NUM_10R,   RESOURCE_ID_NUM_02R,   RESOURCE_ID_NUM_08R,   RESOURCE_ID_NUM_04R };
+static const uint32_t NUM_BOLD_ROT_RES[4] = { RESOURCE_ID_NUM_B10R,  RESOURCE_ID_NUM_B02R,  RESOURCE_ID_NUM_B08R,  RESOURCE_ID_NUM_B04R };
+
 static const uint32_t MONTH_RES[13] = {
   0,
   RESOURCE_ID_MONTH_01, RESOURCE_ID_MONTH_02, RESOURCE_ID_MONTH_03,
@@ -69,6 +73,8 @@ static Window  *s_window;
 static Layer   *s_canvas;
 static GBitmap *s_bmp[13];
 static GBitmap *s_bmp_bold[13];
+static GBitmap *s_bmp_rot[4];       /* rotated corners: 10,02,08,04 */
+static GBitmap *s_bmp_bold_rot[4];
 static GBitmap *s_ghost_bmp[13];
 static GBitmap *s_month_bmp[13];
 static GBitmap *s_day_bmp[7];
@@ -446,7 +452,7 @@ static void draw_spiral(GContext *ctx, int pct) {
   const int32_t offset = -TRIG_MAX_ANGLE / 4;
 
   GColor ink   = GColorFromRGB(42, 42, 34);
-  GColor ghost = GColorFromRGB(210, 206, 194);
+  GColor ghost = GColorFromRGB(225, 221, 212);
 
   /* Ghost — full spiral */
   graphics_context_set_stroke_color(ctx, ghost);
@@ -499,7 +505,7 @@ static void draw_spiral(GContext *ctx, int pct) {
 
 static void draw_square_spiral(GContext *ctx, int pct) {
   GColor ink   = GColorFromRGB(42, 42, 34);
-  GColor ghost = GColorFromRGB(210, 206, 194);
+  GColor ghost = GColorFromRGB(225, 221, 212);
 
   GPoint pts[SQ_SEGS + 1];
   int idx = 0;
@@ -573,7 +579,7 @@ static void draw_pct_battery(GContext *ctx, int pct) {
  * Left       x=17:   09  y=42
  * Right      x=127:  03  y=42
  */
-static const int16_t NUM_X[13] = { 0, 104, 128, 130, 128, 104, 72, 50, 16, 14, 16, 50, 72 };
+static const int16_t NUM_X[13] = { 0, 104, 128, 130, 128, 104, 72, 50, 16, 14, 16, 46, 72 };
 static const int16_t NUM_Y[13] = { 0,  12,  12,  42,  72,  72, 72, 72, 72, 42, 12, 12, 12 };
 
 static void canvas_draw(Layer *layer, GContext *ctx) {
@@ -636,15 +642,24 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   }
 
   /* Numeral bitmaps — fixed positions, bold or regular per setting */
-  GBitmap **active_bmp = (s_bold_style == 1) ? s_bmp_bold : s_bmp;
+  /* Corner numerals (10,02,08,04) use pre-rotated 45° bitmaps */
+  GBitmap **active_bmp     = (s_bold_style == 1) ? s_bmp_bold     : s_bmp;
+  GBitmap **active_bmp_rot = (s_bold_style == 1) ? s_bmp_bold_rot : s_bmp_rot;
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
+
+  /* Map hour → rotated bitmap index: 10→0, 2→1, 8→2, 4→3 */
   for (int h = 1; h <= 12; h++) {
-    if (!active_bmp[h]) continue;
-    GRect bb = gbitmap_get_bounds(active_bmp[h]);
+    GBitmap *bmp = NULL;
+    if      (h == 10) bmp = active_bmp_rot[0];
+    else if (h ==  2) bmp = active_bmp_rot[1];
+    else if (h ==  8) bmp = active_bmp_rot[2];
+    else if (h ==  4) bmp = active_bmp_rot[3];
+    else              bmp = active_bmp[h];
+    if (!bmp) continue;
+    GRect bb = gbitmap_get_bounds(bmp);
     int x = NUM_X[h] - bb.size.w / 2;
     int y = NUM_Y[h] - bb.size.h / 2;
-    graphics_draw_bitmap_in_rect(ctx, active_bmp[h],
-                                 GRect(x, y, bb.size.w, bb.size.h));
+    graphics_draw_bitmap_in_rect(ctx, bmp, GRect(x, y, bb.size.w, bb.size.h));
   }
 
   /* Hands */
@@ -746,6 +761,10 @@ static void window_load(Window *window) {
     s_bmp[i] = gbitmap_create_with_resource(NUM_RES[i]);
   for (int i = 1; i <= 12; i++)
     s_bmp_bold[i] = gbitmap_create_with_resource(NUM_BOLD_RES[i]);
+  for (int i = 0; i < 4; i++)
+    s_bmp_rot[i] = gbitmap_create_with_resource(NUM_ROT_RES[i]);
+  for (int i = 0; i < 4; i++)
+    s_bmp_bold_rot[i] = gbitmap_create_with_resource(NUM_BOLD_ROT_RES[i]);
   for (int i = 1; i <= 12; i++)
     s_ghost_bmp[i] = gbitmap_create_with_resource(GHOST_RES[i]);
   for (int i = 1; i <= 12; i++)
@@ -778,6 +797,10 @@ static void window_unload(Window *window) {
     if (s_bmp_bold[i])  gbitmap_destroy(s_bmp_bold[i]);
     if (s_ghost_bmp[i]) gbitmap_destroy(s_ghost_bmp[i]);
     if (s_month_bmp[i]) gbitmap_destroy(s_month_bmp[i]);
+  }
+  for (int i = 0; i < 4; i++) {
+    if (s_bmp_rot[i])      gbitmap_destroy(s_bmp_rot[i]);
+    if (s_bmp_bold_rot[i]) gbitmap_destroy(s_bmp_bold_rot[i]);
   }
   for (int i = 0; i < 7; i++)
     if (s_day_bmp[i]) gbitmap_destroy(s_day_bmp[i]);

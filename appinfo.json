@@ -5,74 +5,344 @@
   "companyName": "manaksu",
   "versionLabel": "1.0",
   "sdkVersion": "3",
-  "targetPlatforms": ["basalt"],
-  "watchapp": { "watchface": true },
-  "capabilities": ["configurable"],
+  "targetPlatforms": [
+    "basalt"
+  ],
+  "watchapp": {
+    "watchface": true
+  },
+  "capabilities": [
+    "configurable"
+  ],
   "appKeys": {
     "BATTERY_STYLE": 0,
-    "BATTERY_POS":   1,
-    "HAND_STYLE":    2,
-    "BOLD_STYLE":    3,
-    "BG_STYLE":      4
+    "BATTERY_POS": 1,
+    "HAND_STYLE": 2,
+    "BOLD_STYLE": 3,
+    "BG_STYLE": 4
   },
   "resources": {
     "media": [
-      { "type": "bitmap", "name": "NUM_01",   "file": "images/num_01.png" },
-      { "type": "bitmap", "name": "NUM_02",   "file": "images/num_02.png" },
-      { "type": "bitmap", "name": "NUM_03",   "file": "images/num_03.png" },
-      { "type": "bitmap", "name": "NUM_04",   "file": "images/num_04.png" },
-      { "type": "bitmap", "name": "NUM_05",   "file": "images/num_05.png" },
-      { "type": "bitmap", "name": "NUM_06",   "file": "images/num_06.png" },
-      { "type": "bitmap", "name": "NUM_07",   "file": "images/num_07.png" },
-      { "type": "bitmap", "name": "NUM_08",   "file": "images/num_08.png" },
-      { "type": "bitmap", "name": "NUM_09",   "file": "images/num_09.png" },
-      { "type": "bitmap", "name": "NUM_10",   "file": "images/num_10.png" },
-      { "type": "bitmap", "name": "NUM_11",   "file": "images/num_11.png" },
-      { "type": "bitmap", "name": "NUM_12",   "file": "images/num_12.png" },
-      { "type": "bitmap", "name": "NUM_B01",  "file": "images/num_b01.png" },
-      { "type": "bitmap", "name": "NUM_B02",  "file": "images/num_b02.png" },
-      { "type": "bitmap", "name": "NUM_B03",  "file": "images/num_b03.png" },
-      { "type": "bitmap", "name": "NUM_B04",  "file": "images/num_b04.png" },
-      { "type": "bitmap", "name": "NUM_B05",  "file": "images/num_b05.png" },
-      { "type": "bitmap", "name": "NUM_B06",  "file": "images/num_b06.png" },
-      { "type": "bitmap", "name": "NUM_B07",  "file": "images/num_b07.png" },
-      { "type": "bitmap", "name": "NUM_B08",  "file": "images/num_b08.png" },
-      { "type": "bitmap", "name": "NUM_B09",  "file": "images/num_b09.png" },
-      { "type": "bitmap", "name": "NUM_B10",  "file": "images/num_b10.png" },
-      { "type": "bitmap", "name": "NUM_B11",  "file": "images/num_b11.png" },
-      { "type": "bitmap", "name": "NUM_B12",  "file": "images/num_b12.png" },
-      { "type": "bitmap", "name": "MONTH_01", "file": "images/month_01.png" },
-      { "type": "bitmap", "name": "MONTH_02", "file": "images/month_02.png" },
-      { "type": "bitmap", "name": "MONTH_03", "file": "images/month_03.png" },
-      { "type": "bitmap", "name": "MONTH_04", "file": "images/month_04.png" },
-      { "type": "bitmap", "name": "MONTH_05", "file": "images/month_05.png" },
-      { "type": "bitmap", "name": "MONTH_06", "file": "images/month_06.png" },
-      { "type": "bitmap", "name": "MONTH_07", "file": "images/month_07.png" },
-      { "type": "bitmap", "name": "MONTH_08", "file": "images/month_08.png" },
-      { "type": "bitmap", "name": "MONTH_09", "file": "images/month_09.png" },
-      { "type": "bitmap", "name": "MONTH_10", "file": "images/month_10.png" },
-      { "type": "bitmap", "name": "MONTH_11", "file": "images/month_11.png" },
-      { "type": "bitmap", "name": "MONTH_12", "file": "images/month_12.png" },
-      { "type": "bitmap", "name": "DAY_0",    "file": "images/day_0.png" },
-      { "type": "bitmap", "name": "DAY_1",    "file": "images/day_1.png" },
-      { "type": "bitmap", "name": "DAY_2",    "file": "images/day_2.png" },
-      { "type": "bitmap", "name": "DAY_3",    "file": "images/day_3.png" },
-      { "type": "bitmap", "name": "DAY_4",    "file": "images/day_4.png" },
-      { "type": "bitmap", "name": "DAY_5",    "file": "images/day_5.png" },
-      { "type": "bitmap", "name": "DAY_6",    "file": "images/day_6.png" },
-      { "type": "bitmap", "name": "GHOST_01", "file": "images/ghost_01.png" },
-      { "type": "bitmap", "name": "GHOST_02", "file": "images/ghost_02.png" },
-      { "type": "bitmap", "name": "GHOST_03", "file": "images/ghost_03.png" },
-      { "type": "bitmap", "name": "GHOST_04", "file": "images/ghost_04.png" },
-      { "type": "bitmap", "name": "GHOST_05", "file": "images/ghost_05.png" },
-      { "type": "bitmap", "name": "GHOST_06", "file": "images/ghost_06.png" },
-      { "type": "bitmap", "name": "GHOST_07", "file": "images/ghost_07.png" },
-      { "type": "bitmap", "name": "GHOST_08", "file": "images/ghost_08.png" },
-      { "type": "bitmap", "name": "GHOST_09", "file": "images/ghost_09.png" },
-      { "type": "bitmap", "name": "GHOST_10", "file": "images/ghost_10.png" },
-      { "type": "bitmap", "name": "GHOST_11", "file": "images/ghost_11.png" },
-      { "type": "bitmap", "name": "GHOST_12", "file": "images/ghost_12.png" },
-      { "type": "bitmap", "name": "INSCRIPTION", "file": "images/inscription.png" }
+      {
+        "type": "bitmap",
+        "name": "NUM_01",
+        "file": "images/num_01.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_02",
+        "file": "images/num_02.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_03",
+        "file": "images/num_03.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_04",
+        "file": "images/num_04.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_05",
+        "file": "images/num_05.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_06",
+        "file": "images/num_06.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_07",
+        "file": "images/num_07.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_08",
+        "file": "images/num_08.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_09",
+        "file": "images/num_09.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_10",
+        "file": "images/num_10.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_11",
+        "file": "images/num_11.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_12",
+        "file": "images/num_12.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B01",
+        "file": "images/num_b01.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B02",
+        "file": "images/num_b02.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B03",
+        "file": "images/num_b03.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B04",
+        "file": "images/num_b04.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B05",
+        "file": "images/num_b05.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B06",
+        "file": "images/num_b06.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B07",
+        "file": "images/num_b07.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B08",
+        "file": "images/num_b08.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B09",
+        "file": "images/num_b09.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B10",
+        "file": "images/num_b10.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B11",
+        "file": "images/num_b11.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B12",
+        "file": "images/num_b12.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "MONTH_01",
+        "file": "images/month_01.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "MONTH_02",
+        "file": "images/month_02.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "MONTH_03",
+        "file": "images/month_03.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "MONTH_04",
+        "file": "images/month_04.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "MONTH_05",
+        "file": "images/month_05.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "MONTH_06",
+        "file": "images/month_06.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "MONTH_07",
+        "file": "images/month_07.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "MONTH_08",
+        "file": "images/month_08.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "MONTH_09",
+        "file": "images/month_09.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "MONTH_10",
+        "file": "images/month_10.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "MONTH_11",
+        "file": "images/month_11.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "MONTH_12",
+        "file": "images/month_12.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "DAY_0",
+        "file": "images/day_0.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "DAY_1",
+        "file": "images/day_1.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "DAY_2",
+        "file": "images/day_2.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "DAY_3",
+        "file": "images/day_3.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "DAY_4",
+        "file": "images/day_4.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "DAY_5",
+        "file": "images/day_5.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "DAY_6",
+        "file": "images/day_6.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_01",
+        "file": "images/ghost_01.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_02",
+        "file": "images/ghost_02.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_03",
+        "file": "images/ghost_03.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_04",
+        "file": "images/ghost_04.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_05",
+        "file": "images/ghost_05.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_06",
+        "file": "images/ghost_06.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_07",
+        "file": "images/ghost_07.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_08",
+        "file": "images/ghost_08.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_09",
+        "file": "images/ghost_09.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_10",
+        "file": "images/ghost_10.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_11",
+        "file": "images/ghost_11.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_12",
+        "file": "images/ghost_12.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "INSCRIPTION",
+        "file": "images/inscription.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_10R",
+        "file": "images/num_10r.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_02R",
+        "file": "images/num_02r.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_08R",
+        "file": "images/num_08r.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_04R",
+        "file": "images/num_04r.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B10R",
+        "file": "images/num_b_10r.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B02R",
+        "file": "images/num_b_02r.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B08R",
+        "file": "images/num_b_08r.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "NUM_B04R",
+        "file": "images/num_b_04r.png"
+      }
     ]
   }
 }
