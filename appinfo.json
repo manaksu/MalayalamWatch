@@ -1,9 +1,9 @@
 {
-  "uuid": "a3fbc9410-337e-4ce0-89c7-7cd048571c35",
+  "uuid": "96258641-f091-4ba5-895d-b6d9fbf2a523",
   "shortName": "Keralam",
-  "longName": "Keralam Malayalam Clock",
+  "longName": "Malayalam Clock",
   "companyName": "manaksu",
-  "versionLabel": "2.10",
+  "versionLabel": "3.60",
   "sdkVersion": "3",
   "targetPlatforms": [
     "basalt"
@@ -15,12 +15,14 @@
     "configurable"
   ],
   "appKeys": {
-    "BATTERY_POS": 0,
-    "BATTERY_STYLE": 1,
-    "BG_STYLE": 2,
-    "BOLD_STYLE": 3,
-    "CORNER_ROT": 4,
-    "HAND_STYLE": 5
+    "BATTERY_STYLE": 0,
+    "BG_STYLE": 1,
+    "BOLD_STYLE": 2,
+    "CORNER_ROT": 3,
+    "DATE_BOLD": 4,
+    "GRID_BOLD": 5,
+    "GRID_SHADE": 6,
+    "HAND_STYLE": 7
   },
   "resources": {
     "media": [
@@ -241,66 +243,6 @@
       },
       {
         "type": "bitmap",
-        "name": "GHOST_01",
-        "file": "images/ghost_01.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "GHOST_02",
-        "file": "images/ghost_02.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "GHOST_03",
-        "file": "images/ghost_03.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "GHOST_04",
-        "file": "images/ghost_04.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "GHOST_05",
-        "file": "images/ghost_05.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "GHOST_06",
-        "file": "images/ghost_06.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "GHOST_07",
-        "file": "images/ghost_07.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "GHOST_08",
-        "file": "images/ghost_08.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "GHOST_09",
-        "file": "images/ghost_09.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "GHOST_10",
-        "file": "images/ghost_10.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "GHOST_11",
-        "file": "images/ghost_11.png"
-      },
-      {
-        "type": "bitmap",
-        "name": "GHOST_12",
-        "file": "images/ghost_12.png"
-      },
-      {
-        "type": "bitmap",
         "name": "INSCRIPTION",
         "file": "images/inscription.png"
       },
@@ -343,7 +285,128 @@
         "type": "bitmap",
         "name": "NUM_B04R",
         "file": "images/num_b_04r.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_01",
+        "file": "images/ghost_01.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_B01",
+        "file": "images/ghost_b_01.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_02",
+        "file": "images/ghost_02.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_B02",
+        "file": "images/ghost_b_02.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_03",
+        "file": "images/ghost_03.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_B03",
+        "file": "images/ghost_b_03.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_04",
+        "file": "images/ghost_04.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_B04",
+        "file": "images/ghost_b_04.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_05",
+        "file": "images/ghost_05.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_B05",
+        "file": "images/ghost_b_05.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_06",
+        "file": "images/ghost_06.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_B06",
+        "file": "images/ghost_b_06.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_07",
+        "file": "images/ghost_07.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_B07",
+        "file": "images/ghost_b_07.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_08",
+        "file": "images/ghost_08.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_B08",
+        "file": "images/ghost_b_08.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_09",
+        "file": "images/ghost_09.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_B09",
+        "file": "images/ghost_b_09.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_10",
+        "file": "images/ghost_10.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_B10",
+        "file": "images/ghost_b_10.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_11",
+        "file": "images/ghost_11.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_B11",
+        "file": "images/ghost_b_11.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_12",
+        "file": "images/ghost_12.png"
+      },
+      {
+        "type": "bitmap",
+        "name": "GHOST_B12",
+        "file": "images/ghost_b_12.png"
       }
     ]
-  }
+  },
+  "versionCode": 1
 }
