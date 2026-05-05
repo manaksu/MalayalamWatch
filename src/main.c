@@ -14,10 +14,10 @@
 
 #define CX          72
 #define CY          42
-#define HOUR_LEN    26
+#define HOUR_LEN    28
 #define HOUR_TAIL    5
 #define HOUR_W       3
-#define MIN_LEN     34
+#define MIN_LEN     38
 #define MIN_TAIL     6
 #define MIN_W        2
 
@@ -96,13 +96,76 @@ static int      s_hour, s_min;
 static int      s_mday, s_mon, s_year, s_wday;
 static int      s_battery_pct   = 100;
 static int      s_battery_style = 0;   /* 0=spiral, 1=flower radial */
+static int      s_hand_style    = 0;   /* 0=smooth, 1=blocky, 2=tapered */
 
 #define SETTINGS_KEY 1
 typedef struct {
   int battery_style;
+  int hand_style;
 } Settings;
 
-/* ── Hand drawing ─────────────────────────────────────────── */
+/* ── Seeded PRNG (xorshift) ───────────────────────────────── */
+static uint32_t s_rng = 1;
+static void rng_seed(uint32_t s) { s_rng = s ? s : 1; }
+static uint32_t rng_next(void) {
+  s_rng ^= s_rng << 13;
+  s_rng ^= s_rng >> 17;
+  s_rng ^= s_rng << 5;
+  return s_rng;
+}
+/* Pick from: black(×3), dark grey(×2), mid grey(×1) */
+static GColor pixel_col(void) {
+  switch (rng_next() % 6) {
+    case 0: case 1: case 2: return GColorFromRGB(26, 22, 16);
+    case 3: case 4:         return GColorFromRGB(74, 72, 64);
+    default:                return GColorFromRGB(122, 118, 104);
+  }
+}
+
+/* ── Pixel block hand ─────────────────────────────────────── */
+/*  Style 1: each step draws a filled N×N block of random grey pixels */
+static void draw_pixel_blocky(GContext *ctx, int32_t angle,
+                               int len, int tail, int block) {
+  int32_t c = cos_lookup(angle);
+  int32_t s = sin_lookup(angle);
+  int half = block / 2;
+  for (int i = -tail; i <= len; i++) {
+    int px = CX + (int)(i * c / TRIG_MAX_RATIO);
+    int py = CY + (int)(i * s / TRIG_MAX_RATIO);
+    for (int dx = -half; dx <= half; dx++) {
+      for (int dy = -half; dy <= half; dy++) {
+        graphics_context_set_fill_color(ctx, pixel_col());
+        graphics_fill_rect(ctx, GRect(px+dx, py+dy, 1, 1), 0, GCornerNone);
+      }
+    }
+  }
+}
+
+/* ── Pixel tapered hand ───────────────────────────────────── */
+/*  Style 2: 3px wide at base tapering to 1px at tip */
+static void draw_pixel_tapered(GContext *ctx, int32_t angle,
+                                int len, int tail) {
+  int32_t c  = cos_lookup(angle);
+  int32_t s  = sin_lookup(angle);
+  int32_t pc = cos_lookup(angle + TRIG_MAX_ANGLE/4);
+  int32_t ps = sin_lookup(angle + TRIG_MAX_ANGLE/4);
+  for (int i = -tail; i <= len; i++) {
+    int px = CX + (int)(i * c / TRIG_MAX_RATIO);
+    int py = CY + (int)(i * s / TRIG_MAX_RATIO);
+    /* width 3 at tail, 1 at tip */
+    float t = (float)(i + tail) / (len + tail);
+    int w = (t < 0.5f) ? 1 : (t < 0.8f) ? 2 : 3;
+    int half = w / 2;
+    for (int dw = -half; dw <= half; dw++) {
+      int fx = px + (int)(dw * pc / TRIG_MAX_RATIO);
+      int fy = py + (int)(dw * ps / TRIG_MAX_RATIO);
+      graphics_context_set_fill_color(ctx, pixel_col());
+      graphics_fill_rect(ctx, GRect(fx, fy, 1, 1), 0, GCornerNone);
+    }
+  }
+}
+
+/* ── Hand drawing (smooth) ────────────────────────────────── */
 static void draw_hand(GContext *ctx, int32_t angle,
                       int len, int tail, int width) {
   graphics_context_set_stroke_width(ctx, width);
@@ -378,14 +441,16 @@ static void draw_flower_battery(GContext *ctx, int pct) {
 
 /* ── AppMessage handler ───────────────────────────────────── */
 static void inbox_received(DictionaryIterator *iter, void *context) {
-  Tuple *style_t = dict_find(iter, MESSAGE_KEY_BATTERY_STYLE);
-  if (style_t) {
-    s_battery_style = (int)style_t->value->int32;
-    /* Persist */
-    Settings s = { .battery_style = s_battery_style };
-    persist_write_data(SETTINGS_KEY, &s, sizeof(s));
-    layer_mark_dirty(s_canvas);
-  }
+  Tuple *batt_t = dict_find(iter, MESSAGE_KEY_BATTERY_STYLE);
+  if (batt_t) s_battery_style = (int)batt_t->value->int32;
+
+  Tuple *hand_t = dict_find(iter, MESSAGE_KEY_HAND_STYLE);
+  if (hand_t) s_hand_style = (int)hand_t->value->int32;
+
+  Settings s = { .battery_style = s_battery_style,
+                 .hand_style    = s_hand_style };
+  persist_write_data(SETTINGS_KEY, &s, sizeof(s));
+  layer_mark_dirty(s_canvas);
 }
 
 /* ── Spiral drawing ───────────────────────────────────────── */
@@ -442,6 +507,19 @@ static void draw_spiral(GContext *ctx, int pct) {
 }
 
 /* ── Canvas draw ──────────────────────────────────────────── */
+
+/*
+ * Fixed numeral positions (bitmap centers) for 144×84 face with 5px padding.
+ * Face: x=5..139, y=5..79  (FW=134, FH=74)
+ * CX=72, CY=42
+ * Top row    y=14:   10(18) 11(51) 12(72) 01(102) 02(126)  [evenly spaced]
+ * Bottom row y=70:   08(18) 07(51) 06(72) 05(102) 04(126)
+ * Left       x=17:   09  y=42
+ * Right      x=127:  03  y=42
+ */
+static const int16_t NUM_X[13] = { 0, 102, 126, 127, 126, 102, 72, 51, 18, 17, 18, 51, 72 };
+static const int16_t NUM_Y[13] = { 0,  14,  14,  42,  70,  70, 70, 70, 70, 42, 14, 14, 14 };
+
 static void canvas_draw(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   GColor cream = GColorFromRGB(240, 236, 224);
@@ -451,44 +529,74 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, cream);
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
 
-  /* 60 tick marks */
+  /* 60 tick marks along face perimeter (with 5px padding) */
+  /* Face perimeter: FX=5,FY=5,FW=134,FH=74, PERIM=2*(134+74)=416 */
+  #define FX2   5
+  #define FY2   5
+  #define FW2  134
+  #define FH2   74
+  #define PERIM2 416
+  #define TCD2   67   /* FW2/2 = top center distance */
+
   for (int i = 0; i < 60; i++) {
-    int32_t d = TOP_CTR_D + (int32_t)i * PERIM / 60;
-    PerimPt p = perim_to_xy(d);
-    bool major = (i % 5 == 0);
-    GPoint outer = GPoint(p.x, p.y);
-    GPoint inner = inward(p, major ? 5 : 3);
+    int32_t d = TCD2 + (int32_t)i * PERIM2 / 60;
+    d = ((d % PERIM2) + PERIM2) % PERIM2;
+    int16_t px, py; int8_t edge;
+    if (d < FW2)                { px=FX2+d;       py=FY2;       edge=0; }
+    else if (d < FW2+FH2)       { px=FX2+FW2;     py=FY2+d-FW2; edge=1; }
+    else if (d < 2*FW2+FH2)     { px=FX2+FW2-(d-FW2-FH2); py=FY2+FH2; edge=2; }
+    else                        { px=FX2; py=FY2+FH2-(d-2*FW2-FH2); edge=3; }
+
+    int tlen = (i % 5 == 0) ? 4 : 2;
+    GPoint outer = GPoint(px, py);
+    GPoint inner;
+    if      (edge==0) inner = GPoint(px, py+tlen);
+    else if (edge==1) inner = GPoint(px-tlen, py);
+    else if (edge==2) inner = GPoint(px, py-tlen);
+    else              inner = GPoint(px+tlen, py);
+
     graphics_context_set_stroke_color(ctx,
-      major ? GColorFromRGB(80,76,64) : GColorFromRGB(160,154,136));
+      (i%5==0) ? GColorFromRGB(80,76,64) : GColorFromRGB(160,154,136));
     graphics_context_set_stroke_width(ctx, 1);
     graphics_draw_line(ctx, outer, inner);
   }
 
-  /* Numeral bitmaps */
+  /* Numeral bitmaps — fixed positions */
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
   for (int h = 1; h <= 12; h++) {
     if (!s_bmp[h]) continue;
-    int32_t d = TOP_CTR_D + (int32_t)h * PERIM / 12;
-    PerimPt p = perim_to_xy(d);
-    GPoint np = inward(p, 11);
-    np.y += NUM_DY[h];
     GRect bb = gbitmap_get_bounds(s_bmp[h]);
-    int x = np.x - bb.size.w / 2;
-    int y = np.y - bb.size.h / 2;
+    int x = NUM_X[h] - bb.size.w / 2;
+    int y = NUM_Y[h] - bb.size.h / 2;
     graphics_draw_bitmap_in_rect(ctx, s_bmp[h],
                                  GRect(x, y, bb.size.w, bb.size.h));
   }
 
   /* Hands */
-  graphics_context_set_stroke_color(ctx, ink);
   int32_t h_angle =
     (TRIG_MAX_ANGLE * ((s_hour % 12) * 60 + s_min)) / (12 * 60)
     - TRIG_MAX_ANGLE / 4;
   int32_t m_angle =
     (TRIG_MAX_ANGLE * s_min) / 60
     - TRIG_MAX_ANGLE / 4;
-  draw_hand(ctx, h_angle, HOUR_LEN, HOUR_TAIL, HOUR_W);
-  draw_hand(ctx, m_angle, MIN_LEN,  MIN_TAIL,  MIN_W);
+
+  /* Seed RNG from time so pattern is stable per minute */
+  rng_seed((uint32_t)(s_hour * 60 + s_min + 1));
+
+  if (s_hand_style == 0) {
+    /* Smooth line */
+    graphics_context_set_stroke_color(ctx, ink);
+    draw_hand(ctx, h_angle, HOUR_LEN, HOUR_TAIL, HOUR_W);
+    draw_hand(ctx, m_angle, MIN_LEN,  MIN_TAIL,  MIN_W);
+  } else if (s_hand_style == 1) {
+    /* Pixel blocky — 3×3 hour, 2×2 minute */
+    draw_pixel_blocky(ctx, h_angle, HOUR_LEN, HOUR_TAIL, 3);
+    draw_pixel_blocky(ctx, m_angle, MIN_LEN,  MIN_TAIL,  2);
+  } else {
+    /* Pixel tapered */
+    draw_pixel_tapered(ctx, h_angle, HOUR_LEN, HOUR_TAIL);
+    draw_pixel_tapered(ctx, m_angle, MIN_LEN,  MIN_TAIL);
+  }
 
   /* Center cap */
   graphics_context_set_fill_color(ctx, ink);
@@ -597,6 +705,7 @@ static void init(void) {
   Settings s;
   if (persist_read_data(SETTINGS_KEY, &s, sizeof(s)) == sizeof(s)) {
     s_battery_style = s.battery_style;
+    s_hand_style    = s.hand_style;
   }
 
   s_window = window_create();

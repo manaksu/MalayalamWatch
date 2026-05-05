@@ -7,10 +7,11 @@
   "sdkVersion": "3",
   "targetPlatforms": ["basalt"],
   "watchapp": { "watchface": true },
-  "appKeys": {
-    "BATTERY_STYLE": 0
-  },
   "capabilities": ["configurable"],
+  "appKeys": {
+    "BATTERY_STYLE": 0,
+    "HAND_STYLE": 1
+  },
   "resources": {
     "media": [
       { "type": "bitmap", "name": "NUM_01",   "file": "images/num_01.png" },
