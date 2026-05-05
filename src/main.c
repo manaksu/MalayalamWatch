@@ -35,6 +35,14 @@ static const uint32_t NUM_RES[13] = {
   RESOURCE_ID_NUM_10, RESOURCE_ID_NUM_11, RESOURCE_ID_NUM_12,
 };
 
+static const uint32_t NUM_BOLD_RES[13] = {
+  0,
+  RESOURCE_ID_NUM_B01, RESOURCE_ID_NUM_B02, RESOURCE_ID_NUM_B03,
+  RESOURCE_ID_NUM_B04, RESOURCE_ID_NUM_B05, RESOURCE_ID_NUM_B06,
+  RESOURCE_ID_NUM_B07, RESOURCE_ID_NUM_B08, RESOURCE_ID_NUM_B09,
+  RESOURCE_ID_NUM_B10, RESOURCE_ID_NUM_B11, RESOURCE_ID_NUM_B12,
+};
+
 static const uint32_t MONTH_RES[13] = {
   0,
   RESOURCE_ID_MONTH_01, RESOURCE_ID_MONTH_02, RESOURCE_ID_MONTH_03,
@@ -60,6 +68,7 @@ static const uint32_t GHOST_RES[13] = {
 static Window  *s_window;
 static Layer   *s_canvas;
 static GBitmap *s_bmp[13];
+static GBitmap *s_bmp_bold[13];
 static GBitmap *s_ghost_bmp[13];
 static GBitmap *s_month_bmp[13];
 static GBitmap *s_day_bmp[7];
@@ -68,12 +77,16 @@ static int      s_hour, s_min;
 static int      s_mday, s_mon, s_year, s_wday;
 static int      s_battery_pct   = 100;
 static int      s_battery_style = 0;   /* 0=spiral, 1=flower radial */
+static int      s_battery_pos   = 0;   /* 0=on watch face, 1=bottom-left */
 static int      s_hand_style    = 0;   /* 0=smooth, 1=blocky, 2=tapered */
+static int      s_bold_style    = 0;   /* 0=regular, 1=bold */
 
 #define SETTINGS_KEY 1
 typedef struct {
   int battery_style;
+  int battery_pos;
   int hand_style;
+  int bold_style;
 } Settings;
 
 /* ── Seeded PRNG (xorshift) ───────────────────────────────── */
@@ -412,14 +425,13 @@ static void draw_flower_battery(GContext *ctx, int pct) {
 
 /* ── AppMessage handler ───────────────────────────────────── */
 static void inbox_received(DictionaryIterator *iter, void *context) {
-  Tuple *batt_t = dict_find(iter, MESSAGE_KEY_BATTERY_STYLE);
-  if (batt_t) s_battery_style = (int)batt_t->value->int32;
+  Tuple *t;
+  if ((t = dict_find(iter, MESSAGE_KEY_BATTERY_STYLE))) s_battery_style = (int)t->value->int32;
+  if ((t = dict_find(iter, MESSAGE_KEY_BATTERY_POS)))   s_battery_pos   = (int)t->value->int32;
+  if ((t = dict_find(iter, MESSAGE_KEY_HAND_STYLE)))    s_hand_style    = (int)t->value->int32;
+  if ((t = dict_find(iter, MESSAGE_KEY_BOLD_STYLE)))    s_bold_style    = (int)t->value->int32;
 
-  Tuple *hand_t = dict_find(iter, MESSAGE_KEY_HAND_STYLE);
-  if (hand_t) s_hand_style = (int)hand_t->value->int32;
-
-  Settings s = { .battery_style = s_battery_style,
-                 .hand_style    = s_hand_style };
+  Settings s = { s_battery_style, s_battery_pos, s_hand_style, s_bold_style };
   persist_write_data(SETTINGS_KEY, &s, sizeof(s));
   layer_mark_dirty(s_canvas);
 }
@@ -509,37 +521,53 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   #define PERIM2 416
   #define TCD2   67   /* FW2/2 = top center distance */
 
+  /* 60 tick marks — corner hour ticks rotated 45° inward */
+  /* Corner hour ticks: i=10(2), i=20(4), i=40(8), i=50(10) */
   for (int i = 0; i < 60; i++) {
     int32_t d = TCD2 + (int32_t)i * PERIM2 / 60;
     d = ((d % PERIM2) + PERIM2) % PERIM2;
     int16_t px, py; int8_t edge;
-    if (d < FW2)                { px=FX2+d;       py=FY2;       edge=0; }
-    else if (d < FW2+FH2)       { px=FX2+FW2;     py=FY2+d-FW2; edge=1; }
-    else if (d < 2*FW2+FH2)     { px=FX2+FW2-(d-FW2-FH2); py=FY2+FH2; edge=2; }
-    else                        { px=FX2; py=FY2+FH2-(d-2*FW2-FH2); edge=3; }
+    if (d < FW2)                { px=FX2+d;              py=FY2;              edge=0; }
+    else if (d < FW2+FH2)       { px=FX2+FW2;            py=FY2+d-FW2;        edge=1; }
+    else if (d < 2*FW2+FH2)     { px=FX2+FW2-(d-FW2-FH2); py=FY2+FH2;        edge=2; }
+    else                        { px=FX2;                py=FY2+FH2-(d-2*FW2-FH2); edge=3; }
 
-    int tlen = (i % 5 == 0) ? 4 : 2;
-    GPoint outer = GPoint(px, py);
-    GPoint inner;
-    if      (edge==0) inner = GPoint(px, py+tlen);
-    else if (edge==1) inner = GPoint(px-tlen, py);
-    else if (edge==2) inner = GPoint(px, py-tlen);
-    else              inner = GPoint(px+tlen, py);
-
-    graphics_context_set_stroke_color(ctx,
-      (i%5==0) ? GColorFromRGB(80,76,64) : GColorFromRGB(160,154,136));
+    bool major = (i % 5 == 0);
+    int tlen = major ? 5 : 2;
+    GColor tc = major ? GColorFromRGB(80,76,64) : GColorFromRGB(160,154,136);
+    graphics_context_set_stroke_color(ctx, tc);
     graphics_context_set_stroke_width(ctx, 1);
-    graphics_draw_line(ctx, outer, inner);
+
+    /* Corner ticks: draw diagonally into the corner */
+    if (i == 10 || i == 20 || i == 40 || i == 50) {
+      /* Determine diagonal direction based on which corner */
+      int ddx = (i == 10 || i == 50) ? 0 : 0; /* computed below */
+      int ddy = 0;
+      if      (i == 50) { ddx =  tlen; ddy =  tlen; } /* top-left → down-right */
+      else if (i == 10) { ddx = -tlen; ddy =  tlen; } /* top-right → down-left */
+      else if (i == 20) { ddx = -tlen; ddy = -tlen; } /* bottom-right → up-left */
+      else              { ddx =  tlen; ddy = -tlen; } /* bottom-left → up-right */
+      graphics_draw_line(ctx, GPoint(px, py), GPoint(px+ddx, py+ddy));
+    } else {
+      GPoint outer = GPoint(px, py);
+      GPoint inner;
+      if      (edge==0) inner = GPoint(px, py+tlen);
+      else if (edge==1) inner = GPoint(px-tlen, py);
+      else if (edge==2) inner = GPoint(px, py-tlen);
+      else              inner = GPoint(px+tlen, py);
+      graphics_draw_line(ctx, outer, inner);
+    }
   }
 
-  /* Numeral bitmaps — fixed positions */
+  /* Numeral bitmaps — fixed positions, bold or regular per setting */
+  GBitmap **active_bmp = (s_bold_style == 1) ? s_bmp_bold : s_bmp;
   graphics_context_set_compositing_mode(ctx, GCompOpSet);
   for (int h = 1; h <= 12; h++) {
-    if (!s_bmp[h]) continue;
-    GRect bb = gbitmap_get_bounds(s_bmp[h]);
+    if (!active_bmp[h]) continue;
+    GRect bb = gbitmap_get_bounds(active_bmp[h]);
     int x = NUM_X[h] - bb.size.w / 2;
     int y = NUM_Y[h] - bb.size.h / 2;
-    graphics_draw_bitmap_in_rect(ctx, s_bmp[h],
+    graphics_draw_bitmap_in_rect(ctx, active_bmp[h],
                                  GRect(x, y, bb.size.w, bb.size.h));
   }
 
@@ -581,10 +609,18 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   /* Date strip */
   draw_date(ctx);
 
-  /* Battery indicator — style chosen by user */
-  if (s_battery_style == 1) {
-    draw_flower_battery(ctx, s_battery_pct);
+  /* Battery indicator */
+  if (s_battery_pos == 0) {
+    /* On watch face (inside clock) */
+    if (s_battery_style == 1) {
+      draw_flower_battery(ctx, s_battery_pct);
+    } else {
+      draw_spiral(ctx, s_battery_pct);
+    }
   } else {
+    /* Bottom-left of lower half */
+    /* Temporarily move SP_CX/CY to bottom half */
+    /* We draw directly at (26, 148) */
     draw_spiral(ctx, s_battery_pct);
   }
 
@@ -634,6 +670,8 @@ static void window_load(Window *window) {
   for (int i = 1; i <= 12; i++)
     s_bmp[i] = gbitmap_create_with_resource(NUM_RES[i]);
   for (int i = 1; i <= 12; i++)
+    s_bmp_bold[i] = gbitmap_create_with_resource(NUM_BOLD_RES[i]);
+  for (int i = 1; i <= 12; i++)
     s_ghost_bmp[i] = gbitmap_create_with_resource(GHOST_RES[i]);
   for (int i = 1; i <= 12; i++)
     s_month_bmp[i] = gbitmap_create_with_resource(MONTH_RES[i]);
@@ -662,6 +700,7 @@ static void window_unload(Window *window) {
   layer_destroy(s_canvas);
   for (int i = 1; i <= 12; i++) {
     if (s_bmp[i])       gbitmap_destroy(s_bmp[i]);
+    if (s_bmp_bold[i])  gbitmap_destroy(s_bmp_bold[i]);
     if (s_ghost_bmp[i]) gbitmap_destroy(s_ghost_bmp[i]);
     if (s_month_bmp[i]) gbitmap_destroy(s_month_bmp[i]);
   }
@@ -676,7 +715,9 @@ static void init(void) {
   Settings s;
   if (persist_read_data(SETTINGS_KEY, &s, sizeof(s)) == sizeof(s)) {
     s_battery_style = s.battery_style;
+    s_battery_pos   = s.battery_pos;
     s_hand_style    = s.hand_style;
+    s_bold_style    = s.bold_style;
   }
 
   s_window = window_create();
