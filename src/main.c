@@ -25,7 +25,7 @@
 #define SP_CY       42
 #define SP_MAX_R    17
 #define SP_TURNS     3
-#define SP_STEPS   180
+#define SP_STEPS   360   /* 360 = one point per degree, much smoother */
 
 static const uint32_t NUM_RES[13] = {
   0,
@@ -80,6 +80,7 @@ static int      s_battery_style = 0;   /* 0=spiral, 1=flower radial */
 static int      s_battery_pos   = 0;   /* 0=on watch face, 1=bottom-left */
 static int      s_hand_style    = 0;   /* 0=smooth, 1=blocky, 2=tapered */
 static int      s_bold_style    = 0;   /* 0=regular, 1=bold */
+static int      s_bg_style      = 0;   /* 0=cream #f0ece0, 1=white, 2=light grey */
 
 #define SETTINGS_KEY 1
 typedef struct {
@@ -87,6 +88,7 @@ typedef struct {
   int battery_pos;
   int hand_style;
   int bold_style;
+  int bg_style;
 } Settings;
 
 /* ── Seeded PRNG (xorshift) ───────────────────────────────── */
@@ -430,8 +432,9 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_BATTERY_POS)))   s_battery_pos   = (int)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_STYLE)))    s_hand_style    = (int)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_BOLD_STYLE)))    s_bold_style    = (int)t->value->int32;
+  if ((t = dict_find(iter, MESSAGE_KEY_BG_STYLE)))      s_bg_style      = (int)t->value->int32;
 
-  Settings s = { s_battery_style, s_battery_pos, s_hand_style, s_bold_style };
+  Settings s = { s_battery_style, s_battery_pos, s_hand_style, s_bold_style, s_bg_style };
   persist_write_data(SETTINGS_KEY, &s, sizeof(s));
   layer_mark_dirty(s_canvas);
 }
@@ -489,6 +492,76 @@ static void draw_spiral(GContext *ctx, int pct) {
   graphics_fill_circle(ctx, GPoint(SP_CX, SP_CY), 2);
 }
 
+/* ── Square spiral battery (Aldo style) ───────────────────── */
+#define SQ_RINGS  4
+#define SQ_GAP    4
+#define SQ_SEGS  (SQ_RINGS * 4)
+
+static void draw_square_spiral(GContext *ctx, int pct) {
+  GColor ink   = GColorFromRGB(42, 42, 34);
+  GColor ghost = GColorFromRGB(210, 206, 194);
+
+  GPoint pts[SQ_SEGS + 1];
+  int idx = 0;
+  pts[idx++] = GPoint(SP_CX, SP_CY);
+  for (int ring = 1; ring <= SQ_RINGS; ring++) {
+    int s = ring * SQ_GAP;
+    pts[idx++] = GPoint(SP_CX + s, SP_CY + s);
+    pts[idx++] = GPoint(SP_CX + s, SP_CY - s);
+    pts[idx++] = GPoint(SP_CX - s, SP_CY - s);
+    pts[idx++] = GPoint(SP_CX - s, SP_CY + s + SQ_GAP);
+  }
+
+  int total_segs = idx - 1;
+  int filled_segs = total_segs * pct / 100;
+
+  graphics_context_set_stroke_color(ctx, ghost);
+  graphics_context_set_stroke_width(ctx, 1);
+  for (int i = 0; i < total_segs; i++)
+    graphics_draw_line(ctx, pts[i], pts[i+1]);
+
+  graphics_context_set_stroke_color(ctx, ink);
+  graphics_context_set_stroke_width(ctx, 2);
+  for (int i = 0; i < filled_segs; i++)
+    graphics_draw_line(ctx, pts[i], pts[i+1]);
+
+  graphics_context_set_fill_color(ctx, ink);
+  graphics_fill_circle(ctx, GPoint(SP_CX, SP_CY), 2);
+}
+
+/* ── Percent text battery (Aldo style) ────────────────────── */
+static void draw_pct_battery(GContext *ctx, int pct) {
+  GColor ink = GColorFromRGB(42, 42, 34);
+  GColor fill = (pct <= 20) ? GColorFromRGB(120, 20, 20) : ink;
+
+  const int BX = 6, BY = 148, BW = 54, BH = 10, TIP = 4;
+
+  /* Outline */
+  graphics_context_set_stroke_color(ctx, ink);
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_draw_rect(ctx, GRect(BX, BY, BW, BH));
+
+  /* Tip */
+  graphics_context_set_fill_color(ctx, ink);
+  graphics_fill_rect(ctx, GRect(BX+BW+1, BY+BH/2-TIP/2, 3, TIP), 0, GCornerNone);
+
+  /* Fill bar */
+  int fill_w = (BW - 2) * pct / 100;
+  if (fill_w > 0) {
+    graphics_context_set_fill_color(ctx, fill);
+    graphics_fill_rect(ctx, GRect(BX+1, BY+1, fill_w, BH-2), 0, GCornerNone);
+  }
+
+  /* % label */
+  char buf[6];
+  snprintf(buf, sizeof(buf), "%d%%", pct);
+  graphics_context_set_text_color(ctx, ink);
+  graphics_draw_text(ctx, buf,
+    fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD),
+    GRect(BX, BY+BH+2, 60, 18),
+    GTextOverflowModeWordWrap, GTextAlignmentLeft, NULL);
+}
+
 /* ── Canvas draw ──────────────────────────────────────────── */
 
 /*
@@ -505,8 +578,11 @@ static const int16_t NUM_Y[13] = { 0,  12,  12,  42,  72,  72, 72, 72, 72, 42, 1
 
 static void canvas_draw(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
-  GColor cream = GColorFromRGB(240, 236, 224);
-  GColor ink   = GColorFromRGB(42, 42, 34);
+  GColor cream;
+  if      (s_bg_style == 1) cream = GColorWhite;
+  else if (s_bg_style == 2) cream = GColorLightGray;
+  else                      cream = GColorFromRGB(240, 236, 224);
+  GColor ink = GColorFromRGB(42, 42, 34);
 
   /* Cream background */
   graphics_context_set_fill_color(ctx, cream);
@@ -609,18 +685,17 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   /* Date strip */
   draw_date(ctx);
 
-  /* Battery indicator */
+  /* Battery indicator — style 0=circular spiral, 1=flower, 2=square spiral, 3=% text */
   if (s_battery_pos == 0) {
-    /* On watch face (inside clock) */
-    if (s_battery_style == 1) {
-      draw_flower_battery(ctx, s_battery_pct);
-    } else {
-      draw_spiral(ctx, s_battery_pct);
+    /* On watch face */
+    switch (s_battery_style) {
+      case 1:  draw_flower_battery(ctx, s_battery_pct); break;
+      case 2:  draw_square_spiral(ctx, s_battery_pct);  break;
+      case 3:  draw_pct_battery(ctx, s_battery_pct);    break;
+      default: draw_spiral(ctx, s_battery_pct);         break;
     }
   } else {
-    /* Bottom-left of lower half */
-    /* Temporarily move SP_CX/CY to bottom half */
-    /* We draw directly at (26, 148) */
+    /* Bottom-left of lower half — spiral only for now */
     draw_spiral(ctx, s_battery_pct);
   }
 
@@ -718,6 +793,7 @@ static void init(void) {
     s_battery_pos   = s.battery_pos;
     s_hand_style    = s.hand_style;
     s_bold_style    = s.bold_style;
+    s_bg_style      = s.bg_style;
   }
 
   s_window = window_create();

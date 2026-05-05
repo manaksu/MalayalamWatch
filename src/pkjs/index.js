@@ -3,10 +3,11 @@ Pebble.addEventListener('ready', function() {
 });
 
 Pebble.addEventListener('showConfiguration', function() {
-  var batt  = localStorage.getItem('battery_style') || '0';
-  var bpos  = localStorage.getItem('battery_pos')   || '0';
-  var hand  = localStorage.getItem('hand_style')    || '0';
-  var bold  = localStorage.getItem('bold_style')    || '0';
+  var batt = localStorage.getItem('battery_style') || '0';
+  var bpos = localStorage.getItem('battery_pos')   || '0';
+  var hand = localStorage.getItem('hand_style')    || '0';
+  var bold = localStorage.getItem('bold_style')    || '0';
+  var bg   = localStorage.getItem('bg_style')      || '0';
 
   var html = '<!DOCTYPE html><html><head>'
     + '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -21,10 +22,19 @@ Pebble.addEventListener('showConfiguration', function() {
     + '</style></head><body>'
     + '<h2>Keralam Settings</h2>'
 
+    + '<label>Background</label>'
+    + '<select id="bg">'
+    + '<option value="0"' + (bg=='0'?' selected':'') + '>Cream (#f0ece0)</option>'
+    + '<option value="1"' + (bg=='1'?' selected':'') + '>White (#FFFFFF)</option>'
+    + '<option value="2"' + (bg=='2'?' selected':'') + '>Light Grey (#AAAAAA)</option>'
+    + '</select>'
+
     + '<label>Battery Style</label>'
     + '<select id="bs">'
-    + '<option value="0"' + (batt=='0'?' selected':'') + '>Spiral (Athapookkalam)</option>'
+    + '<option value="0"' + (batt=='0'?' selected':'') + '>Circular Spiral</option>'
     + '<option value="1"' + (batt=='1'?' selected':'') + '>Flower Radial Fill</option>'
+    + '<option value="2"' + (batt=='2'?' selected':'') + '>Square Spiral (Aldo)</option>'
+    + '<option value="3"' + (batt=='3'?' selected':'') + '>Battery % (Aldo)</option>'
     + '</select>'
 
     + '<label>Battery Position</label>'
@@ -49,16 +59,18 @@ Pebble.addEventListener('showConfiguration', function() {
     + '<button onclick="save()">Save</button>'
     + '<script>'
     + 'function save(){'
+    + 'var g=document.getElementById("bg").value;'
     + 'var b=document.getElementById("bs").value;'
     + 'var p=document.getElementById("bp").value;'
     + 'var h=document.getElementById("hs").value;'
     + 'var d=document.getElementById("bld").value;'
+    + 'localStorage.setItem("bg_style",g);'
     + 'localStorage.setItem("battery_style",b);'
     + 'localStorage.setItem("battery_pos",p);'
     + 'localStorage.setItem("hand_style",h);'
     + 'localStorage.setItem("bold_style",d);'
     + 'location.href="pebblejs://close#"+encodeURIComponent(JSON.stringify({'
-    + 'BATTERY_STYLE:parseInt(b),BATTERY_POS:parseInt(p),'
+    + 'BG_STYLE:parseInt(g),BATTERY_STYLE:parseInt(b),BATTERY_POS:parseInt(p),'
     + 'HAND_STYLE:parseInt(h),BOLD_STYLE:parseInt(d)}));'
     + '}'
     + '</script></body></html>';

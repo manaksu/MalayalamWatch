@@ -12,7 +12,8 @@
     "BATTERY_STYLE": 0,
     "BATTERY_POS":   1,
     "HAND_STYLE":    2,
-    "BOLD_STYLE":    3
+    "BOLD_STYLE":    3,
+    "BG_STYLE":      4
   },
   "resources": {
     "media": [
