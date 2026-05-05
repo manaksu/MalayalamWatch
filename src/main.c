@@ -86,7 +86,8 @@ static int      s_battery_style = 0;   /* 0=spiral, 1=flower radial */
 static int      s_battery_pos   = 0;   /* 0=on watch face, 1=bottom-left */
 static int      s_hand_style    = 0;   /* 0=smooth, 1=blocky, 2=tapered */
 static int      s_bold_style    = 0;   /* 0=regular, 1=bold */
-static int      s_bg_style      = 0;   /* 0=cream #f0ece0, 1=white, 2=light grey */
+static int      s_bg_style      = 0;   /* 0=cream, 1=white, 2=light grey */
+static int      s_corner_rot    = 1;   /* 0=flat, 1=rotated 45° */
 
 #define SETTINGS_KEY 1
 typedef struct {
@@ -95,6 +96,7 @@ typedef struct {
   int hand_style;
   int bold_style;
   int bg_style;
+  int corner_rot;
 } Settings;
 
 /* ── Seeded PRNG (xorshift) ───────────────────────────────── */
@@ -439,8 +441,9 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_HAND_STYLE)))    s_hand_style    = (int)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_BOLD_STYLE)))    s_bold_style    = (int)t->value->int32;
   if ((t = dict_find(iter, MESSAGE_KEY_BG_STYLE)))      s_bg_style      = (int)t->value->int32;
+  if ((t = dict_find(iter, MESSAGE_KEY_CORNER_ROT)))    s_corner_rot    = (int)t->value->int32;
 
-  Settings s = { s_battery_style, s_battery_pos, s_hand_style, s_bold_style, s_bg_style };
+  Settings s = { s_battery_style, s_battery_pos, s_hand_style, s_bold_style, s_bg_style, s_corner_rot };
   persist_write_data(SETTINGS_KEY, &s, sizeof(s));
   layer_mark_dirty(s_canvas);
 }
@@ -650,11 +653,15 @@ static void canvas_draw(Layer *layer, GContext *ctx) {
   /* Map hour → rotated bitmap index: 10→0, 2→1, 8→2, 4→3 */
   for (int h = 1; h <= 12; h++) {
     GBitmap *bmp = NULL;
-    if      (h == 10) bmp = active_bmp_rot[0];
-    else if (h ==  2) bmp = active_bmp_rot[1];
-    else if (h ==  8) bmp = active_bmp_rot[2];
-    else if (h ==  4) bmp = active_bmp_rot[3];
-    else              bmp = active_bmp[h];
+    if (s_corner_rot == 1) {
+      if      (h == 10) bmp = active_bmp_rot[0];
+      else if (h ==  2) bmp = active_bmp_rot[1];
+      else if (h ==  8) bmp = active_bmp_rot[2];
+      else if (h ==  4) bmp = active_bmp_rot[3];
+      else              bmp = active_bmp[h];
+    } else {
+      bmp = active_bmp[h];
+    }
     if (!bmp) continue;
     GRect bb = gbitmap_get_bounds(bmp);
     int x = NUM_X[h] - bb.size.w / 2;
@@ -817,6 +824,7 @@ static void init(void) {
     s_hand_style    = s.hand_style;
     s_bold_style    = s.bold_style;
     s_bg_style      = s.bg_style;
+    s_corner_rot    = s.corner_rot;
   }
 
   s_window = window_create();

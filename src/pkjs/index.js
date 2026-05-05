@@ -8,6 +8,7 @@ Pebble.addEventListener('showConfiguration', function() {
   var hand = localStorage.getItem('hand_style')    || '0';
   var bold = localStorage.getItem('bold_style')    || '0';
   var bg   = localStorage.getItem('bg_style')      || '0';
+  var crot = localStorage.getItem('corner_rot')    || '1';
 
   var html = '<!DOCTYPE html><html><head>'
     + '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -56,6 +57,12 @@ Pebble.addEventListener('showConfiguration', function() {
     + '<option value="1"' + (bold=='1'?' selected':'') + '>Bold</option>'
     + '</select>'
 
+    + '<label>Corner Numerals</label>'
+    + '<select id="cr">'
+    + '<option value="1"' + (crot=='1'?' selected':'') + '>Rotated 45°</option>'
+    + '<option value="0"' + (crot=='0'?' selected':'') + '>Flat</option>'
+    + '</select>'
+
     + '<button onclick="save()">Save</button>'
     + '<script>'
     + 'function save(){'
@@ -64,14 +71,16 @@ Pebble.addEventListener('showConfiguration', function() {
     + 'var p=document.getElementById("bp").value;'
     + 'var h=document.getElementById("hs").value;'
     + 'var d=document.getElementById("bld").value;'
+    + 'var r=document.getElementById("cr").value;'
     + 'localStorage.setItem("bg_style",g);'
     + 'localStorage.setItem("battery_style",b);'
     + 'localStorage.setItem("battery_pos",p);'
     + 'localStorage.setItem("hand_style",h);'
     + 'localStorage.setItem("bold_style",d);'
+    + 'localStorage.setItem("corner_rot",r);'
     + 'location.href="pebblejs://close#"+encodeURIComponent(JSON.stringify({'
     + 'BG_STYLE:parseInt(g),BATTERY_STYLE:parseInt(b),BATTERY_POS:parseInt(p),'
-    + 'HAND_STYLE:parseInt(h),BOLD_STYLE:parseInt(d)}));'
+    + 'HAND_STYLE:parseInt(h),BOLD_STYLE:parseInt(d),CORNER_ROT:parseInt(r)}));'
     + '}'
     + '</script></body></html>';
 
